@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinControl Pro + Alexa & Gemini AI</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        },
+                        alexa: '#00CAFF',
+                        gemini: '#8E75FF'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .tab-btn.active {
+            border-bottom: 3px solid #22c55e;
+            color: #22c55e;
+            font-weight: 600;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 3px;
+        }
+
+        /* Mobile app experience: bottom navigation, safe areas and touch targets */
+        @media (max-width: 767px) {
+            html { scroll-behavior: smooth; }
+            body { min-width: 320px; padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+            header { position: sticky; top: 0; z-index: 50; }
+            header > div:first-child > div { height: 58px; }
+            header h1 { font-size: 1rem; }
+            header p { font-size: 10px; }
+            header .max-w-7xl { padding-left: 14px; padding-right: 14px; }
+            header .bg-slate-900\/80 {
+                position: fixed;
+                left: 0; right: 0; bottom: 0; top: auto;
+                z-index: 60;
+                padding: 7px 6px calc(7px + env(safe-area-inset-bottom));
+                border-top: 1px solid #334155;
+                border-bottom: 0;
+                background: rgba(15, 23, 42, .97);
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+                box-shadow: 0 -8px 24px rgba(0,0,0,.28);
+            }
+            #nav-tabs {
+                display: flex;
+                width: 100%;
+                max-width: 560px;
+                margin: 0 auto;
+                justify-content: space-around;
+                gap: 2px;
+                overflow: visible;
+            }
+            #nav-tabs .tab-btn {
+                flex: 1 1 20%;
+                min-width: 0;
+                min-height: 52px;
+                padding: 6px 2px 5px;
+                margin: 0;
+                border: 0;
+                border-radius: 10px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+                font-size: 9px;
+                line-height: 1.1;
+                white-space: normal;
+                text-align: center;
+            }
+            #nav-tabs .tab-btn i { font-size: 17px; }
+            #nav-tabs .tab-btn span {
+                display: block;
+                max-width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .tab-btn.active {
+                border-bottom: 0;
+                background: rgba(34,197,94,.12);
+                color: #4ade80;
+            }
+            main.max-w-7xl {
+                padding: 16px 12px 24px;
+                width: 100%;
+            }
+            .tab-content { gap: 14px; }
+            .tab-content > div,
+            .tab-content .bg-slate-900 {
+                min-width: 0;
+            }
+            .bg-slate-900.rounded-xl,
+            .bg-slate-900.border {
+                border-radius: 14px;
+            }
+            .tab-content .p-5 { padding: 14px; }
+            .tab-content h2 { font-size: 1.1rem; line-height: 1.35; }
+            .tab-content h3 { overflow-wrap: anywhere; }
+            .tab-content .grid { min-width: 0; }
+            .tab-content button,
+            .tab-content input,
+            .tab-content select,
+            .tab-content textarea {
+                touch-action: manipulation;
+            }
+            .tab-content button { min-height: 40px; }
+            .tab-content input,
+            .tab-content select,
+            .tab-content textarea {
+                max-width: 100%;
+                font-size: 16px;
+            }
+            .tab-content .overflow-x-auto { -webkit-overflow-scrolling: touch; }
+            .tab-content table { min-width: 520px; }
+            canvas { max-width: 100%; }
+            #toast-notification {
+                left: 12px;
+                right: 12px;
+                bottom: calc(82px + env(safe-area-inset-bottom));
+                width: auto;
+                justify-content: center;
+            }
+            /* Keep dense code samples readable without widening the page */
+            pre, code { overflow-wrap: anywhere; }
+            .tab-content .flex.justify-between { gap: 10px; }
+        }
+
+        @media (max-width: 380px) {
+            #nav-tabs .tab-btn { font-size: 8px; }
+            #nav-tabs .tab-btn i { font-size: 16px; }
+            .tab-content .p-5 { padding: 12px; }
+            .tab-content .text-2xl { font-size: 1.3rem; }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased flex flex-col">
+
+    <!-- Toast Notification Banner -->
+    <div id="toast-notification" class="fixed bottom-4 right-4 z-50 hidden bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-xs transition-all duration-300">
+        <i class="fa-solid fa-circle-check text-base"></i>
+        <span id="toast-message">Operação realizada com sucesso!</span>
+    </div>
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                        <i class="fa-solid fa-wallet text-emerald-400 text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold text-white leading-tight">FinControl <span class="text-emerald-400">Pro</span></h1>
+                        <p class="text-xs text-slate-400">Controle Financeiro • Alexa • Gemini AI</p>
+                    </div>
+                </div>
+                <!-- Quick Summary Badges -->
+                <div class="hidden md:flex items-center space-x-6 text-sm">
+                    <div class="text-right">
+                        <p class="text-xs text-slate-400">Renda Mensal</p>
+                        <p id="hdr-income" class="font-semibold text-emerald-400">R$ 5.000,00</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-slate-400">Saldo Livre</p>
+                        <p id="hdr-free-balance" class="font-semibold text-cyan-400">R$ 1.800,00</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="bg-slate-900/80 border-t border-slate-800/80 backdrop-blur">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <nav class="flex space-x-2 sm:space-x-6 overflow-x-auto text-sm" id="nav-tabs">
+                    <button data-tab="dashboard" class="tab-btn active py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
+                        <i class="fa-solid fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </button>
+                    <button data-tab="bills" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
+                        <i class="fa-solid fa-receipt"></i>
+                        <span>Contas & Dívidas</span>
+                    </button>
+                    <button data-tab="investments" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
+                        <i class="fa-solid fa-chart-line"></i>
+                        <span>Cronograma de Investimentos</span>
+                    </button>
+                    <button data-tab="alexa" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
+                        <i class="fa-solid fa-microphone text-cyan-400"></i>
+                        <span>Integração Alexa</span>
+                    </button>
+                    <button data-tab="gemini" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
+                        <i class="fa-solid fa-sparkles text-purple-400"></i>
+                        <span>Integração Gemini AI</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Body -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- TAB 1: DASHBOARD -->
+        <section id="tab-dashboard" class="tab-content space-y-6">
+            <!-- Top Metric Cards Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Renda Mensal Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Renda Mensal</p>
+                            <h3 id="card-income" class="text-2xl font-bold text-white mt-1">R$ 5.000,00</h3>
+                        </div>
+                        <button id="btn-edit-income" class="text-slate-500 hover:text-emerald-400 transition text-sm p-1">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-2">Sua entrada bruta cadastrada</p>
+                </div>
+
+                <!-- Contas a Pagar Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Contas Fixas / Mês</p>
+                            <h3 id="card-bills-total" class="text-2xl font-bold text-amber-400 mt-1">R$ 2.200,00</h3>
+                        </div>
+                        <div class="p-2 bg-amber-500/10 rounded-lg">
+                            <i class="fa-solid fa-file-invoice-dollar text-amber-400"></i>
+                        </div>
+                    </div>
+                    <p id="card-bills-pending" class="text-xs text-amber-500/80 mt-2">R$ 1.200,00 pendentes este mês</p>
+                </div>
+
+                <!-- Dívidas Totais Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Parcelas de Dívidas</p>
+                            <h3 id="card-debts-total" class="text-2xl font-bold text-rose-400 mt-1">R$ 1.000,00</h3>
+                        </div>
+                        <div class="p-2 bg-rose-500/10 rounded-lg">
+                            <i class="fa-solid fa-credit-card text-rose-400"></i>
+                        </div>
+                    </div>
+                    <p id="card-debts-balance" class="text-xs text-rose-400/80 mt-2">Saldo devedor total: R$ 12.500,00</p>
+                </div>
+
+                <!-- Saldo Livre para Investir / Gastar -->
+                <div class="bg-slate-900 border border-emerald-500/30 rounded-xl p-5 bg-gradient-to-br from-slate-900 to-emerald-950/20">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-emerald-400 uppercase tracking-wider">Saldo Livre / Mês</p>
+                            <h3 id="card-free-balance" class="text-2xl font-bold text-emerald-400 mt-1">R$ 1.800,00</h3>
+                        </div>
+                        <div class="p-2 bg-emerald-500/10 rounded-lg">
+                            <i class="fa-solid fa-piggy-bank text-emerald-400"></i>
+                        </div>
+                    </div>
+                    <p class="text-xs text-emerald-500 mt-2">Disponível para aportes & reservas</p>
+                </div>
+            </div>
+
+            <!-- Income Commitment Bar -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="text-sm font-semibold text-slate-200">Comprometimento da Renda Mensal</h4>
+                    <span id="pct-committed" class="text-xs font-bold text-amber-400">64% comprometido</span>
+                </div>
+                <div class="w-full h-4 bg-slate-800 rounded-full overflow-hidden flex">
+                    <div id="bar-bills" class="h-full bg-amber-500 transition-all duration-500" style="width: 44%" title="Contas Fixas"></div>
+                    <div id="bar-debts" class="h-full bg-rose-500 transition-all duration-500" style="width: 20%" title="Dívidas"></div>
+                    <div id="bar-invest" class="h-full bg-emerald-500 transition-all duration-500" style="width: 20%" title="Aporte Planejado"></div>
+                    <div id="bar-free" class="h-full bg-slate-700 transition-all duration-500" style="width: 16%" title="Livre"></div>
+                </div>
+                <div class="flex flex-wrap gap-4 mt-3 text-xs text-slate-400">
+                    <div class="flex items-center space-x-1.5"><span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span><span>Contas Fixas (<span id="lbl-bills-pct">44%</span>)</span></div>
+                    <div class="flex items-center space-x-1.5"><span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span><span>Dívidas (<span id="lbl-debts-pct">20%</span>)</span></div>
+                    <div class="flex items-center space-x-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span><span>Investimento Mensal (<span id="lbl-invest-pct">20%</span>)</span></div>
+                    <div class="flex items-center space-x-1.5"><span class="w-3 h-3 rounded-full bg-slate-700 inline-block"></span><span>Saldo Livre (<span id="lbl-free-pct">16%</span>)</span></div>
+                </div>
+            </div>
+
+            <!-- Visual Charts & Alerts Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Distribution Donut Chart -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 lg:col-span-1 flex flex-col">
+                    <h4 class="text-sm font-semibold text-slate-200 mb-4">Distribuição do Orçamento</h4>
+                    <div class="relative h-64 w-full flex-grow flex items-center justify-center">
+                        <canvas id="chart-budget"></canvas>
+                    </div>
+                </div>
+
+                <!-- Upcoming Bills & AI Summary -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 lg:col-span-2 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="text-sm font-semibold text-slate-200">Próximos Vencimentos</h4>
+                            <span class="text-xs bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full border border-amber-500/20">Próximos 7 dias</span>
+                        </div>
+                        <div class="space-y-3" id="dash-upcoming-list">
+                            <!-- Items populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Gemini AI Mini Insight Banner -->
+                    <div class="mt-6 p-4 rounded-xl bg-purple-950/30 border border-purple-500/30 flex items-start space-x-3">
+                        <div class="p-2 bg-purple-500/20 rounded-lg text-purple-400 mt-0.5">
+                            <i class="fa-solid fa-sparkles"></i>
+                        </div>
+                        <div class="flex-grow">
+                            <h5 class="text-xs font-bold text-purple-300 uppercase tracking-wide">Insight Gemini AI</h5>
+                            <p id="dash-ai-tip" class="text-xs text-slate-300 mt-1 leading-relaxed">
+                                Seu comprometimento fixo está em 64%. Recomendamos utilizar R$ 800 do seu saldo livre para amortizar a dívida do cartão de crédito (juros de 12% a.m.) antes de aumentar seus aportes no CDI.
+                            </p>
+                        </div>
+                        <button id="btn-quick-ask-gemini" class="text-xs bg-purple-600 hover:bg-purple-500 text-white font-medium px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                            Ver Análise
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 2: BILLS & DEBTS MANAGEMENT -->
+        <section id="tab-bills" class="tab-content hidden space-y-6">
+            <!-- Header actions -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white">Gestão de Contas & Dívidas</h2>
+                    <p class="text-xs text-slate-400">Cadastre suas obrigações mensais, altere status e simule planos de quitação.</p>
+                </div>
+                <div class="flex space-x-2">
+                    <button id="btn-add-bill" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Nova Conta</span>
+                    </button>
+                    <button id="btn-add-debt" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Nova Dívida</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Bills Table -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-800 flex justify-between items-center">
+                    <h3 class="text-sm font-semibold text-slate-200">Contas a Pagar (Mensais)</h3>
+                    <span id="bills-count-badge" class="text-xs text-slate-400">4 contas cadastradas</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                            <tr>
+                                <th class="py-3 px-4">Descrição</th>
+                                <th class="py-3 px-4">Categoria</th>
+                                <th class="py-3 px-4">Vencimento</th>
+                                <th class="py-3 px-4">Valor (R$)</th>
+                                <th class="py-3 px-4">Status</th>
+                                <th class="py-3 px-4 text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbl-bills-body" class="divide-y divide-slate-800 text-slate-300">
+                            <!-- Populated dynamically by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Debts Cards & Strategy Simulator -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Debts List -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 lg:col-span-2">
+                    <h3 class="text-sm font-semibold text-slate-200 mb-4">Dívidas & Empréstimos Ativos</h3>
+                    <div id="debts-list-container" class="space-y-3">
+                        <!-- Populated dynamically by JS -->
+                    </div>
+                </div>
+
+                <!-- Snowball vs Avalanche Simulator -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-200 mb-2">Estratégia de Quitação Acelerada</h3>
+                        <p class="text-xs text-slate-400 mb-4">Simule o tempo total para quitar todas as dívidas injetando um valor extra mensal.</p>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Aporte Extra Mensal (R$)</label>
+                                <input id="sim-extra-pay" type="number" value="300" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Estratégia</label>
+                                <select id="sim-strategy" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                                    <option value="avalanche">Método Avalanche (Maior Juros Primeiro)</option>
+                                    <option value="snowball">Método Bola de Neve (Menor Saldo Primeiro)</option>
+                                </select>
+                            </div>
+                            <button id="btn-run-debt-sim" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-2 rounded-lg transition">
+                                Calcular Tempo de Quitação
+                            </button>
+                        </div>
+
+                        <!-- Results Box -->
+                        <div id="debt-sim-result" class="mt-4 p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs space-y-1">
+                            <p class="text-slate-400">Tempo total estimado: <span class="text-emerald-400 font-bold">14 meses</span></p>
+                            <p class="text-slate-400">Economia estimada em juros: <span class="text-cyan-400 font-bold">R$ 1.420,00</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: INVESTMENT SCHEDULE & CALCULATOR -->
+        <section id="tab-investments" class="tab-content hidden space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white">Cronograma & Projeção de Investimentos Futuros</h2>
+                    <p class="text-xs text-slate-400">Simule a rentabilidade do CDI compostos mês a mês e visualize a curva de patrimônio.</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-xs text-slate-400">Modo Tabela:</span>
+                    <button id="btn-toggle-ir" class="bg-slate-800 hover:bg-slate-700 text-xs text-emerald-400 font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition">
+                        IR Regressivo: ON
+                    </button>
+                </div>
+            </div>
+
+            <!-- Parameters Input Bar -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Aporte Inicial (R$)</label>
+                    <input id="inv-initial" type="number" value="3000" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Aporte Mensal (R$)</label>
+                    <input id="inv-monthly" type="number" value="1000" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">CDI Anual (%)</label>
+                    <input id="inv-cdi" type="number" step="0.1" value="13.6" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">% do CDI</label>
+                    <input id="inv-rate-pct" type="number" value="120" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Prazo (Meses)</label>
+                    <input id="inv-months" type="number" min="1" max="60" value="8" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
+                </div>
+            </div>
+
+            <!-- Summary KPI Box -->
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+                    <p class="text-xs text-slate-400">Total Investido</p>
+                    <p id="kpi-total-invested" class="text-lg font-bold text-slate-100 mt-1">R$ 10.000,00</p>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+                    <p class="text-xs text-slate-400">Rendimento Bruto</p>
+                    <p id="kpi-total-interest" class="text-lg font-bold text-emerald-400 mt-1">R$ 682,45</p>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+                    <p class="text-xs text-slate-400">Imposto de Renda (Est.)</p>
+                    <p id="kpi-total-ir" class="text-lg font-bold text-rose-400 mt-1">R$ 153,55</p>
+                </div>
+                <div class="bg-slate-900 border border-emerald-500/30 rounded-xl p-4 text-center bg-emerald-950/10">
+                    <p class="text-xs text-emerald-400">Saldo Final Líquido</p>
+                    <p id="kpi-final-balance" class="text-lg font-bold text-emerald-400 mt-1">R$ 10.528,90</p>
+                </div>
+            </div>
+
+            <!-- Investment Chart -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <h3 class="text-sm font-semibold text-slate-200 mb-4">Evolução Patrimonial (Investido vs. Juros Compostos)</h3>
+                <div class="relative h-72 w-full">
+                    <canvas id="chart-investment"></canvas>
+                </div>
+            </div>
+
+            <!-- Month by Month Schedule Table -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-800 flex justify-between items-center">
+                    <h3 class="text-sm font-semibold text-slate-200">Cronograma Mês a Mês (Novembro 2026 - Junho 2027)</h3>
+                    <button id="btn-export-csv" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center space-x-1">
+                        <i class="fa-solid fa-download"></i>
+                        <span>Exportar Dados</span>
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                            <tr>
+                                <th class="py-3 px-4">Mês / Período</th>
+                                <th class="py-3 px-4">Saldo Inicial</th>
+                                <th class="py-3 px-4">Aporte</th>
+                                <th class="py-3 px-4">Rendimento Mês</th>
+                                <th class="py-3 px-4">Alíquota IR</th>
+                                <th class="py-3 px-4">Saldo Bruto</th>
+                                <th class="py-3 px-4 text-right">Saldo Líquido Est.</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbl-schedule-body" class="divide-y divide-slate-800 text-slate-300">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 4: ALEXA INTEGRATION -->
+        <section id="tab-alexa" class="tab-content hidden space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center space-x-2">
+                        <i class="fa-solid fa-microphone text-cyan-400"></i>
+                        <span>Central de Integração Amazon Alexa</span>
+                    </h2>
+                    <p class="text-xs text-slate-400">Simule comandos de voz e veja a especificação técnica da Skill completa.</p>
+                </div>
+                <span class="text-xs bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-3 py-1 rounded-full font-medium">
+                    Skill Status: Pronta para AWS Lambda
+                </span>
+            </div>
+
+            <!-- Voice Interaction Simulator -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Interactive Voice Console -->
+                <div class="bg-slate-900 border border-cyan-500/30 rounded-xl p-5 lg:col-span-1 flex flex-col justify-between bg-gradient-to-b from-slate-900 to-cyan-950/20">
+                    <div>
+                        <div class="flex items-center space-x-3 mb-4">
+                            <div class="w-10 h-10 rounded-full bg-cyan-500/20 border border-cyan-400 flex items-center justify-center text-cyan-400 text-lg shadow-lg shadow-cyan-500/20">
+                                <i class="fa-solid fa-podcast"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-white">Simulador de Voz Alexa</h3>
+                                <p class="text-xs text-cyan-400">"Alexa, abre o FinControl Pro"</p>
+                            </div>
+                        </div>
+
+                        <p class="text-xs text-slate-400 mb-3">Escolha um comando de voz para testar a resposta da Skill em tempo real:</p>
+
+                        <div class="space-y-2">
+                            <button data-alexa-cmd="saldo" class="btn-alexa-cmd w-full text-left bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 p-3 rounded-lg text-xs text-slate-200 transition flex items-center justify-between">
+                                <span>"Alexa, qual meu saldo livre este mês?"</span>
+                                <i class="fa-solid fa-chevron-right text-slate-600"></i>
+                            </button>
+                            <button data-alexa-cmd="investimento" class="btn-alexa-cmd w-full text-left bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 p-3 rounded-lg text-xs text-slate-200 transition flex items-center justify-between">
+                                <span>"Alexa, quanto vou ter investido em Junho?"</span>
+                                <i class="fa-solid fa-chevron-right text-slate-600"></i>
+                            </button>
+                            <button data-alexa-cmd="contas" class="btn-alexa-cmd w-full text-left bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 p-3 rounded-lg text-xs text-slate-200 transition flex items-center justify-between">
+                                <span>"Alexa, quais contas vencem esta semana?"</span>
+                                <i class="fa-solid fa-chevron-right text-slate-600"></i>
+                            </button>
+                            <button data-alexa-cmd="aporte" class="btn-alexa-cmd w-full text-left bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 p-3 rounded-lg text-xs text-slate-200 transition flex items-center justify-between">
+                                <span>"Alexa, registrar aporte de 1000 reais"</span>
+                                <i class="fa-solid fa-chevron-right text-slate-600"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Alexa Response Dialog Box -->
+                    <div class="mt-6 p-4 rounded-xl bg-slate-950 border border-cyan-500/30">
+                        <div class="flex items-center space-x-2 text-cyan-400 mb-1">
+                            <i class="fa-solid fa-volume-high text-xs"></i>
+                            <span class="text-xs font-bold uppercase tracking-wider">Resposta da Alexa</span>
+                        </div>
+                        <p id="alexa-speech-output" class="text-xs text-slate-200 italic leading-relaxed">
+                            "Olá! No momento, seu saldo livre estimado para este mês é de R$ 1.800,00, com 64% da sua renda comprometida."
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Technical Code & Intent Model -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 lg:col-span-2 space-y-4">
+                    <div class="flex border-b border-slate-800 space-x-4 text-xs font-semibold">
+                        <button id="btn-alexa-tab-json" class="pb-2 border-b-2 border-cyan-400 text-cyan-400">Interaction Model (JSON)</button>
+                        <button id="btn-alexa-tab-node" class="pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200">AWS Lambda Handler (Node.js)</button>
+                    </div>
+
+                    <!-- Code Container JSON -->
+                    <div id="code-alexa-json" class="block">
+                        <pre class="bg-slate-950 p-4 rounded-lg text-xs font-mono text-cyan-300 overflow-x-auto max-h-96"><code>{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "controle financeiro",
+      "intents": [
+        {
+          "name": "ConsultaSaldoLivreIntent",
+          "slots": [],
+          "samples": [
+            "qual é o meu saldo livre",
+            "quanto sobrou no meu orçamento",
+            "qual saldo disponivel este mes"
+          ]
+        },
+        {
+          "name": "ProjecaoInvestimentoIntent",
+          "slots": [
+            { "name": "mes", "type": "AMAZON.Month" }
+          ],
+          "samples": [
+            "quanto vou ter investido em {mes}",
+            "qual meu saldo de investimento para {mes}",
+            "simular patrimonio ate {mes}"
+          ]
+        },
+        {
+          "name": "ConsultaContasIntent",
+          "slots": [],
+          "samples": [
+            "quais contas vencem essa semana",
+            "tenho contas pendentes",
+            "lista minhas contas a pagar"
+          ]
+        }
+      ]
+    }
+  }
+}</code></pre>
+                    </div>
+
+                    <!-- Code Container Node.js -->
+                    <div id="code-alexa-node" class="hidden">
+                        <pre class="bg-slate-950 p-4 rounded-lg text-xs font-mono text-emerald-300 overflow-x-auto max-h-96"><code>const Alexa = require('ask-sdk-core');
+
+const ProjecaoInvestimentoIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'ProjecaoInvestimentoIntent';
+    },
+    async handle(handlerInput) {
+        // Exemplo de integração com API backend do FinControl Pro
+        const mes = Alexa.getSlotValue(handlerInput.requestEnvelope, 'mes') || 'Junho';
+        const resposta = `Com aportes de 1000 reais a 120% do CDI, sua projeção para ${mes} é de aproximadamente 10 mil e 528 reais líquidos.`;
+        
+        return handlerInput.responseBuilder
+            .speak(resposta)
+            .reprompt('Deseja consultar outro período?')
+            .getResponse();
+    }
+};
+
+exports.handler = Alexa.SkillBuilders.custom()
+    .addRequestHandlers(ProjecaoInvestimentoIntentHandler)
+    .lambda();</code></pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 5: GEMINI AI INTEGRATION (NEW!) -->
+        <section id="tab-gemini" class="tab-content hidden space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center space-x-2">
+                        <i class="fa-solid fa-sparkles text-purple-400"></i>
+                        <span>Integração Inteligente Google Gemini AI</span>
+                    </h2>
+                    <p class="text-xs text-slate-400">Assistente financeiro autônomo, análise contextual de orçamento e código de integração API.</p>
+                </div>
+                <span class="text-xs bg-purple-500/10 text-purple-400 border border-purple-500/20 px-3 py-1 rounded-full font-medium">
+                    Gemini 1.5 Pro / Flash Ready
+                </span>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Interactive Gemini AI Chat & Financial Advisor -->
+                <div class="bg-slate-900 border border-purple-500/30 rounded-xl p-5 lg:col-span-2 flex flex-col justify-between bg-gradient-to-br from-slate-900 via-slate-900 to-purple-950/20">
+                    <div>
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-400 flex items-center justify-center text-purple-400">
+                                    <i class="fa-solid fa-brain"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-bold text-white">Assistente Financeiro Gemini</h3>
+                                    <p class="text-xs text-purple-400">Modelo: gemini-1.5-flash (Análise Financeira)</p>
+                                </div>
+                            </div>
+                            <button id="btn-generate-ai-report" class="bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                <span>Gerar Diagnóstico Completo</span>
+                            </button>
+                        </div>
+
+                        <!-- Chat Conversation Container -->
+                        <div id="gemini-chat-history" class="space-y-3 max-h-80 overflow-y-auto pr-2 text-xs">
+                            <!-- Message 1 (AI) -->
+                            <div class="flex items-start space-x-2">
+                                <div class="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs flex-shrink-0">G</div>
+                                <div class="bg-slate-950 border border-purple-500/20 rounded-xl p-3 text-slate-200 max-w-xl">
+                                    <p class="font-semibold text-purple-300 mb-1">Gemini AI Advisor</p>
+                                    <p>Olá! Analisei seus dados financeiros atuais. Você tem <strong>R$ 5.000,00</strong> de renda mensal, com <strong>64%</strong> já comprometidos entre contas fixas e dívidas. Como posso otimizar suas finanças hoje?</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Input Box -->
+                    <div class="mt-4 pt-3 border-t border-slate-800 flex items-center space-x-2">
+                        <input id="gemini-user-input" type="text" placeholder="Pergunte algo ao Gemini (ex: Como quitar minha dívida mais rápido?)" class="flex-grow bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                        <button id="btn-send-gemini" class="bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs px-4 py-2 rounded-lg transition flex items-center space-x-1">
+                            <i class="fa-solid fa-paper-plane"></i>
+                            <span>Enviar</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Suggested Prompts & AI Features Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+                    <div>
+                        <h4 class="text-sm font-semibold text-slate-200 mb-3">Comandos Sugeridos para o Gemini</h4>
+                        <div class="space-y-2">
+                            <button data-gemini-prompt="anomalia" class="btn-gemini-prompt w-full text-left bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/40 p-2.5 rounded-lg text-xs text-slate-300 transition">
+                                🔍 "Detectar anomalias e gastos excessivos"
+                            </button>
+                            <button data-gemini-prompt="quitacao" class="btn-gemini-prompt w-full text-left bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/40 p-2.5 rounded-lg text-xs text-slate-300 transition">
+                                ⚡ "Criar plano de quitação de dívidas priorizado"
+                            </button>
+                            <button data-gemini-prompt="investimento" class="btn-gemini-prompt w-full text-left bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/40 p-2.5 rounded-lg text-xs text-slate-300 transition">
+                                📈 "Comparar CDI 120% vs Tesouro Direto vs IPCA+"
+                            </button>
+                            <button data-gemini-prompt="reserva" class="btn-gemini-prompt w-full text-left bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/40 p-2.5 rounded-lg text-xs text-slate-300 transition">
+                                🛡️ "Calcular minha Reserva de Emergência Ideal"
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 p-3 rounded-lg bg-purple-950/20 border border-purple-500/20 text-xs text-purple-300">
+                        <i class="fa-solid fa-circle-info mr-1"></i>
+                        A API do Gemini permite análises contextuais em tempo real enviando a estrutura do seu aplicativo como um JSON no prompt do sistema.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gemini Code Specs (JS & Python SDK) -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                <div class="flex border-b border-slate-800 space-x-4 text-xs font-semibold">
+                    <button id="btn-gemini-tab-js" class="pb-2 border-b-2 border-purple-400 text-purple-400">JavaScript REST / SDK</button>
+                    <button id="btn-gemini-tab-python" class="pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200">Python Integration Script</button>
+                </div>
+
+                <!-- JavaScript Integration Code -->
+                <div id="code-gemini-js" class="block">
+                    <pre class="bg-slate-950 p-4 rounded-lg text-xs font-mono text-purple-300 overflow-x-auto max-h-96"><code>// Exemplo de integração usando Google GenAI SDK (JavaScript)
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+async function analisarFinancas(dadosFinanceiros, perguntaUsuario) {
+    const systemInstruction = `Você é um consultor financeiro pessoal especialista em investimentos no Brasil (CDI, Tesouro, LCI/LCA) e quitação de dívidas. 
+    Analise a estrutura JSON recebida e dê respostas diretas, motivadoras e numéricas.`;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-1.5-flash',
+        contents: [
+            { role: 'user', parts: [{ text: `Dados Financeiros: ${JSON.stringify(dadosFinanceiros)}\nPergunta: ${perguntaUsuario}` }] }
+        ],
+        config: { systemInstruction }
+    });
+
+    return response.text;
+}</code></pre>
+                </div>
+
+                <!-- Python Integration Code -->
+                <div id="code-gemini-python" class="hidden">
+                    <pre class="bg-slate-950 p-4 rounded-lg text-xs font-mono text-emerald-300 overflow-x-auto max-h-96"><code># Exemplo de Script Python com o novo SDK google-genai
+from google import genai
+from google.genai import types
+
+client = genai.Client()
+
+def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
+    prompt = f"""
+    Atue como um planejador financeiro CFP®.
+    Renda Mensal: R$ {renda}
+    Contas Fixas: R$ {contas}
+    Dívidas Totais: R$ {dividas}
+    Aporte Mensal Planejado: R$ {aportes}
+    
+    Forneça 3 ações prioritárias para os próximos 6 meses.
+    """
+    
+    response = client.models.generate_content(
+        model='gemini-1.5-pro',
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.2,
+        )
+    )
+    
+    return response.text</code></pre>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal for Adding/Editing Bills -->
+    <div id="modal-bill" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 space-y-4">
+            <h3 id="modal-bill-title" class="text-base font-bold text-white">Adicionar Nova Conta</h3>
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block text-slate-400 mb-1">Descrição</label>
+                    <input id="inp-bill-desc" type="text" placeholder="Ex: Conta de Luz" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Categoria</label>
+                    <select id="inp-bill-cat" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
+                        <option value="Moradia">Moradia</option>
+                        <option value="Serviços">Serviços / Utilidades</option>
+                        <option value="Alimentação">Alimentação</option>
+                        <option value="Transporte">Transporte</option>
+                        <option value="Assinaturas">Assinaturas / Lazer</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Valor (R$)</label>
+                        <input id="inp-bill-val" type="number" step="0.01" placeholder="250.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Vencimento</label>
+                        <input id="inp-bill-date" type="date" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button id="btn-close-modal-bill" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition">Cancelar</button>
+                <button id="btn-save-bill" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-xs transition">Salvar Conta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Editing Income -->
+    <div id="modal-income" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-sm w-full p-6 space-y-4">
+            <h3 class="text-base font-bold text-white">Editar Renda Mensal</h3>
+            <div class="text-xs space-y-2">
+                <label class="block text-slate-400">Nova Renda Mensal (R$)</label>
+                <input id="inp-new-income" type="number" step="100" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
+            </div>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button id="btn-close-modal-income" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition">Cancelar</button>
+                <button id="btn-save-income" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-xs transition">Salvar Renda</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Application State & Logic -->
+    <script>
+        const state = {
+            income: 5000.0,
+            bills: [
+                { id: 1, desc: 'Aluguel & Condomínio', cat: 'Moradia', val: 1400.0, date: '2026-11-10', paid: true },
+                { id: 2, desc: 'Energia & Água', cat: 'Serviços', val: 280.0, date: '2026-11-15', paid: false },
+                { id: 3, desc: 'Internet Fibra 500M', cat: 'Serviços', val: 120.0, date: '2026-11-18', paid: false },
+                { id: 4, desc: 'Supermercado Mensal', cat: 'Alimentação', val: 400.0, date: '2026-11-20', paid: false },
+            ],
+            debts: [
+                { id: 1, desc: 'Cartão de Crédito', balance: 4500.0, ratePct: 11.5, minPayment: 450.0 },
+                { id: 2, desc: 'Empréstimo Pessoal', balance: 8000.0, ratePct: 2.5, minPayment: 550.0 }
+            ],
+            investmentConfig: {
+                initial: 3000.0,
+                monthly: 1000.0,
+                cdiAnnual: 13.6,
+                ratePct: 120,
+                months: 8,
+                useIR: true
+            }
+        };
+
+        let budgetChart = null;
+        let investChart = null;
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast-notification');
+            document.getElementById('toast-message').innerText = msg;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        function formatBRL(val) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+        }
+
+        function initTabs() {
+            const tabs = document.querySelectorAll('#nav-tabs button');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const target = tab.getAttribute('data-tab');
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+                    const activeContent = document.getElementById(`tab-${target}`);
+                    if (activeContent) activeContent.classList.remove('hidden');
+
+                    if (target === 'dashboard' && budgetChart) budgetChart.update();
+                    if (target === 'investments' && investChart) investChart.update();
+                });
+            });
+        }
+
+        function recalculate() {
+            const totalBills = state.bills.reduce((acc, b) => acc + b.val, 0);
+            const pendingBills = state.bills.filter(b => !b.paid).reduce((acc, b) => acc + b.val, 0);
+            const totalDebtsPay = state.debts.reduce((acc, d) => acc + d.minPayment, 0);
+            const totalDebtBalance = state.debts.reduce((acc, d) => acc + d.balance, 0);
+            const monthlyInvest = state.investmentConfig.monthly;
+
+            const freeBalance = state.income - (totalBills + totalDebtsPay);
+            const committedPct = Math.round(((totalBills + totalDebtsPay) / state.income) * 100);
+
+            document.getElementById('hdr-income').innerText = formatBRL(state.income);
+            document.getElementById('hdr-free-balance').innerText = formatBRL(freeBalance);
+            document.getElementById('card-income').innerText = formatBRL(state.income);
+
+            document.getElementById('card-bills-total').innerText = formatBRL(totalBills);
+            document.getElementById('card-bills-pending').innerText = `${formatBRL(pendingBills)} pendentes este mês`;
+
+            document.getElementById('card-debts-total').innerText = formatBRL(totalDebtsPay);
+            document.getElementById('card-debts-balance').innerText = `Saldo devedor total: ${formatBRL(totalDebtBalance)}`;
+
+            document.getElementById('card-free-balance').innerText = formatBRL(freeBalance);
+            document.getElementById('pct-committed').innerText = `${committedPct}% comprometido`;
+
+            const billsPct = Math.round((totalBills / state.income) * 100);
+            const debtsPct = Math.round((totalDebtsPay / state.income) * 100);
+            const investPct = Math.round((monthlyInvest / state.income) * 100);
+            const freePct = Math.max(0, 100 - (billsPct + debtsPct + investPct));
+
+            document.getElementById('bar-bills').style.width = `${billsPct}%`;
+            document.getElementById('bar-debts').style.width = `${debtsPct}%`;
+            document.getElementById('bar-invest').style.width = `${investPct}%`;
+            document.getElementById('bar-free').style.width = `${freePct}%`;
+
+            document.getElementById('lbl-bills-pct').innerText = `${billsPct}%`;
+            document.getElementById('lbl-debts-pct').innerText = `${debtsPct}%`;
+            document.getElementById('lbl-invest-pct').innerText = `${investPct}%`;
+            document.getElementById('lbl-free-pct').innerText = `${freePct}%`;
+
+            renderUpcomingBills();
+            renderBillsTable();
+            renderDebtsList();
+            updateBudgetChart(totalBills, totalDebtsPay, monthlyInvest, Math.max(0, freeBalance - monthlyInvest));
+            calculateInvestmentSchedule();
+        }
+
+        function renderUpcomingBills() {
+            const container = document.getElementById('dash-upcoming-list');
+            container.innerHTML = '';
+
+            const pending = state.bills.filter(b => !b.paid).slice(0, 3);
+            if (pending.length === 0) {
+                container.innerHTML = '<p class="text-xs text-emerald-400 py-2"><i class="fa-solid fa-circle-check mr-1"></i> Todas as contas deste mês estão pagas!</p>';
+                return;
+            }
+
+            pending.forEach(b => {
+                const item = document.createElement('div');
+                item.className = 'flex justify-between items-center bg-slate-950 p-3 rounded-lg border border-slate-800/80';
+                item.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 bg-amber-500/10 rounded-lg text-amber-400">
+                            <i class="fa-solid fa-calendar-day"></i>
+                        </div>
+                        <div>
+                            <p class="font-semibold text-xs text-slate-200">${b.desc}</p>
+                            <p class="text-[10px] text-slate-400">Vence em: ${b.date.split('-').reverse().join('/')} • ${b.cat}</p>
+                        </div>
+                    </div>
+                    <span class="font-bold text-xs text-amber-400">${formatBRL(b.val)}</span>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function renderBillsTable() {
+            const tbody = document.getElementById('tbl-bills-body');
+            tbody.innerHTML = '';
+
+            state.bills.forEach(b => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-850 transition';
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-medium text-slate-200">${b.desc}</td>
+                    <td class="py-3 px-4"><span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[11px]">${b.cat}</span></td>
+                    <td class="py-3 px-4">${b.date.split('-').reverse().join('/')}</td>
+                    <td class="py-3 px-4 font-bold text-white">${formatBRL(b.val)}</td>
+                    <td class="py-3 px-4">
+                        <button onclick="toggleBillPaid(${b.id})" class="px-2.5 py-1 rounded-full text-[11px] font-semibold border transition ${b.paid ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}">
+                            ${b.paid ? '<i class="fa-solid fa-check mr-1"></i> Paga' : '<i class="fa-solid fa-clock mr-1"></i> Pendente'}
+                        </button>
+                    </td>
+                    <td class="py-3 px-4 text-right">
+                        <button onclick="deleteBill(${b.id})" class="text-slate-500 hover:text-rose-400 p-1 transition"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('bills-count-badge').innerText = `${state.bills.length} contas cadastradas`;
+        }
+
+        function toggleBillPaid(id) {
+            const bill = state.bills.find(b => b.id === id);
+            if (bill) {
+                bill.paid = !bill.paid;
+                showToast(`Status da conta "${bill.desc}" atualizado!`);
+                recalculate();
+            }
+        }
+
+        function deleteBill(id) {
+            const bill = state.bills.find(b => b.id === id);
+            state.bills = state.bills.filter(b => b.id !== id);
+            if (bill) showToast(`Conta "${bill.desc}" removida.`);
+            recalculate();
+        }
+
+        function renderDebtsList() {
+            const container = document.getElementById('debts-list-container');
+            container.innerHTML = '';
+
+            state.debts.forEach(d => {
+                const card = document.createElement('div');
+                card.className = 'bg-slate-950 border border-slate-800 rounded-lg p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3';
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h4 class="font-bold text-xs text-white">${d.desc}</h4>
+                            <span class="bg-rose-500/10 text-rose-400 text-[10px] px-2 py-0.5 rounded border border-rose-500/20">${d.ratePct}% a.m.</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">Saldo Devedor: <strong class="text-rose-400">${formatBRL(d.balance)}</strong></p>
+                    </div>
+                    <div class="text-right flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-0 border-slate-800 pt-2 sm:pt-0">
+                        <div>
+                            <p class="text-[10px] text-slate-500 uppercase">Parcela Mínima</p>
+                            <p class="font-bold text-xs text-slate-200">${formatBRL(d.minPayment)}/mês</p>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function initBudgetChart() {
+            const ctx = document.getElementById('chart-budget').getContext('2d');
+            budgetChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Contas Fixas', 'Dívidas', 'Investimentos', 'Saldo Livre'],
+                    datasets: [{
+                        data: [2200, 1000, 1000, 800],
+                        backgroundColor: ['#f59e0b', '#f43f5e', '#10b981', '#334155'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        function updateBudgetChart(bills, debts, invest, free) {
+            if (!budgetChart) return;
+            budgetChart.data.datasets[0].data = [bills, debts, invest, free];
+            budgetChart.update();
+        }
+
+        function calculateInvestmentSchedule() {
+            const initial = parseFloat(document.getElementById('inv-initial').value) || 0;
+            const monthly = parseFloat(document.getElementById('inv-monthly').value) || 0;
+            const cdi = parseFloat(document.getElementById('inv-cdi').value) || 13.6;
+            const ratePct = parseFloat(document.getElementById('inv-rate-pct').value) || 120;
+            const monthsCount = parseInt(document.getElementById('inv-months').value) || 8;
+
+            state.investmentConfig = { initial, monthly, cdiAnnual: cdi, ratePct, months: monthsCount, useIR: state.investmentConfig.useIR };
+
+            const annualRate = (cdi / 100) * (ratePct / 100);
+            const monthlyRate = Math.pow(1 + annualRate, 1 / 12) - 1;
+
+            const monthNames = ["Novembro 2026", "Dezembro 2026", "Janeiro 2027", "Fevereiro 2027", "Março 2027", "Abril 2027", "Maio 2027", "Junho 2027", "Julho 2027", "Agosto 2027", "Setembro 2027", "Outubro 2027"];
+
+            let currentBalance = initial;
+            let totalInvested = initial;
+            let totalInterest = 0;
+
+            const tbody = document.getElementById('tbl-schedule-body');
+            tbody.innerHTML = '';
+
+            const chartLabels = [];
+            const chartInvestedData = [];
+            const chartBalanceData = [];
+
+            for (let i = 0; i < monthsCount; i++) {
+                const monthLabel = monthNames[i % monthNames.length] || `Mês ${i + 1}`;
+                const aporte = (i === 0) ? 0 : monthly;
+                if (i > 0) totalInvested += monthly;
+
+                const startBalance = currentBalance + aporte;
+                const monthInterest = startBalance * monthlyRate;
+                totalInterest += monthInterest;
+                currentBalance = startBalance + monthInterest;
+
+                const days = (i + 1) * 30;
+                let irRate = 0.225;
+                if (days > 180 && days <= 360) irRate = 0.20;
+                else if (days > 360 && days <= 720) irRate = 0.175;
+                else if (days > 720) irRate = 0.15;
+
+                const irTax = state.investmentConfig.useIR ? (totalInterest * irRate) : 0;
+                const netBalance = currentBalance - irTax;
+
+                chartLabels.push(monthLabel.split(' ')[0]);
+                chartInvestedData.push(totalInvested);
+                chartBalanceData.push(currentBalance);
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-850 transition';
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-semibold text-slate-200">${monthLabel}</td>
+                    <td class="py-3 px-4">${formatBRL(startBalance - aporte)}</td>
+                    <td class="py-3 px-4 text-emerald-400 font-medium">+${formatBRL(aporte)}</td>
+                    <td class="py-3 px-4 text-cyan-400 font-semibold">+${formatBRL(monthInterest)}</td>
+                    <td class="py-3 px-4"><span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[11px]">${(irRate * 100).toFixed(1)}%</span></td>
+                    <td class="py-3 px-4 font-bold text-white">${formatBRL(currentBalance)}</td>
+                    <td class="py-3 px-4 text-right font-bold text-emerald-400">${formatBRL(netBalance)}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+
+            const daysFinal = monthsCount * 30;
+            let finalIrRate = 0.225;
+            if (daysFinal > 180) finalIrRate = 0.20;
+
+            const estIrTotal = totalInterest * finalIrRate;
+
+            document.getElementById('kpi-total-invested').innerText = formatBRL(totalInvested);
+            document.getElementById('kpi-total-interest').innerText = formatBRL(totalInterest);
+            document.getElementById('kpi-total-ir').innerText = formatBRL(estIrTotal);
+            document.getElementById('kpi-final-balance').innerText = formatBRL(currentBalance - estIrTotal);
+
+            updateInvestChart(chartLabels, chartInvestedData, chartBalanceData);
+        }
+
+        function initInvestChart() {
+            const ctx = document.getElementById('chart-investment').getContext('2d');
+            investChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Total Investido (Aportes)',
+                            data: [],
+                            borderColor: '#94a3b8',
+                            backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Saldo Total (Juros Compostos)',
+                            data: [],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { color: '#94a3b8' } }
+                    },
+                    scales: {
+                        x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
+                        y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } }
+                    }
+                }
+            });
+        }
+
+        function updateInvestChart(labels, invested, balance) {
+            if (!investChart) return;
+            investChart.data.labels = labels;
+            investChart.data.datasets[0].data = invested;
+            investChart.data.datasets[1].data = balance;
+            investChart.update();
+        }
+
+        function initAlexaSimulator() {
+            const output = document.getElementById('alexa-speech-output');
+            const btns = document.querySelectorAll('.btn-alexa-cmd');
+
+            btns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const cmd = btn.getAttribute('data-alexa-cmd');
+                    if (cmd === 'saldo') {
+                        const free = document.getElementById('hdr-free-balance').innerText;
+                        output.innerText = `"Com base nos seus dados atuais, você tem ${free} de saldo livre estimado para este mês."`;
+                    } else if (cmd === 'investimento') {
+                        const finalVal = document.getElementById('kpi-final-balance').innerText;
+                        output.innerText = `"Considerando seus aportes de 1.000 reais por mês a 120% do CDI, em Junho de 2027 você terá aproximadamente ${finalVal} acumulados."`;
+                    } else if (cmd === 'contas') {
+                        const pendingCount = state.bills.filter(b => !b.paid).length;
+                        output.innerText = `"Você possui ${pendingCount} contas pendentes para vencer neste mês. A próxima é ${state.bills[1].desc} no valor de ${formatBRL(state.bills[1].val)}."`;
+                    } else if (cmd === 'aporte') {
+                        output.innerText = `"Aporte de R$ 1.000,00 registrado com sucesso na sua projeção de investimentos para o próximo mês."`;
+                    }
+                });
+            });
+
+            document.getElementById('btn-alexa-tab-json').addEventListener('click', () => {
+                document.getElementById('code-alexa-json').classList.remove('hidden');
+                document.getElementById('code-alexa-node').classList.add('hidden');
+                document.getElementById('btn-alexa-tab-json').className = 'pb-2 border-b-2 border-cyan-400 text-cyan-400';
+                document.getElementById('btn-alexa-tab-node').className = 'pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200';
+            });
+            document.getElementById('btn-alexa-tab-node').addEventListener('click', () => {
+                document.getElementById('code-alexa-json').classList.add('hidden');
+                document.getElementById('code-alexa-node').classList.remove('hidden');
+                document.getElementById('btn-alexa-tab-node').className = 'pb-2 border-b-2 border-cyan-400 text-cyan-400';
+                document.getElementById('btn-alexa-tab-json').className = 'pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200';
+            });
+        }
+
+        function initGeminiSimulator() {
+            const chatHistory = document.getElementById('gemini-chat-history');
+            const userInput = document.getElementById('gemini-user-input');
+            const btnSend = document.getElementById('btn-send-gemini');
+
+            function addMessage(role, text) {
+                const msg = document.createElement('div');
+                msg.className = 'flex items-start space-x-2';
+                if (role === 'user') {
+                    msg.innerHTML = `
+                        <div class="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-white text-xs flex-shrink-0">Você</div>
+                        <div class="bg-slate-800 rounded-xl p-3 text-slate-200 max-w-xl">
+                            <p class="font-semibold text-slate-400 mb-1">Sua Pergunta</p>
+                            <p>${text}</p>
+                        </div>
+                    `;
+                } else {
+                    msg.innerHTML = `
+                        <div class="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs flex-shrink-0">G</div>
+                        <div class="bg-slate-950 border border-purple-500/30 rounded-xl p-3 text-slate-200 max-w-xl">
+                            <p class="font-semibold text-purple-300 mb-1">Gemini AI Advisor</p>
+                            <p>${text}</p>
+                        </div>
+                    `;
+                }
+                chatHistory.appendChild(msg);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+
+            function handleSend() {
+                const text = userInput.value.trim();
+                if (!text) return;
+                addMessage('user', text);
+                userInput.value = '';
+
+                setTimeout(() => {
+                    let aiReply = "Analisei sua solicitação. Com base na sua taxa de juros atual e saldo devedor, a recomendação é focar na quitação do Cartão de Crédito (11,5% a.m.) antes de aumentar os aportes no CDI.";
+                    if (text.toLowerCase().includes('anomalia') || text.toLowerCase().includes('gasto')) {
+                        aiReply = "🔍 **Análise de Anomalias Gemini**: Seus gastos com Moradia e Serviços representam 33.6% da renda. Não foram detectadas anomalias graves, mas o cartão de crédito gera R$ 517,50 em juros/mês se não for quitado.";
+                    } else if (text.toLowerCase().includes('reserva')) {
+                        aiReply = "🛡️ **Cálculo de Reserva de Emergência**: Para cobrir 6 meses das suas contas fixas (R$ 2.200/mês), sua reserva ideal é de **R$ 13.200,00**. Com seu saldo livre de R$ 1.800, você pode alcançá-la em 7.3 meses.";
+                    } else if (text.toLowerCase().includes('cdi') || text.toLowerCase().includes('comparar')) {
+                        aiReply = "📈 **Comparativo de Investimentos (Gemini AI)**:<br>• **CDI 120% (LCI/LCA isento)**: ~13.6% a.a. líquido.<br>• **Tesouro IPCA+ 2029**: IPCA + 6.45% a.a. (Proteção contra inflação).<br>Recomendamos manter 70% no CDI 120% e 30% em IPCA+ para otimização de risco.";
+                    }
+                    addMessage('ai', aiReply);
+                }, 600);
+            }
+
+            btnSend.addEventListener('click', handleSend);
+            userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
+
+            document.querySelectorAll('.btn-gemini-prompt').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const promptText = btn.innerText.replace(/^[^\"]*\"/, '').replace(/\"$/, '');
+                    userInput.value = promptText;
+                    handleSend();
+                });
+            });
+
+            document.getElementById('btn-quick-ask-gemini').addEventListener('click', () => {
+                const tabs = document.querySelectorAll('#nav-tabs button');
+                tabs.forEach(t => t.classList.remove('active'));
+                document.querySelector('[data-tab="gemini"]').classList.add('active');
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+                document.getElementById('tab-gemini').classList.remove('hidden');
+            });
+
+            document.getElementById('btn-generate-ai-report').addEventListener('click', () => {
+                addMessage('user', 'Gerar Diagnóstico Financeiro Completo');
+                setTimeout(() => {
+                    addMessage('ai', `📊 <strong>DIAGNÓSTICO FINANCEIRO COMPLETO (GEMINI AI)</strong><br><br>
+                    1. <strong>Saúde Financeira</strong>: Pontuação 7.2/10. Comprometimento de 64% da renda.<br>
+                    2. <strong>Plano de Ação Dívidas</strong>: Aloque R$ 300/mês extras no Cartão de Crédito (Estratégia Avalanche). Quitação total em 11 meses.<br>
+                    3. <strong>Metas de Investimento</strong>: Em Junho de 2027, mantendo aportes de R$ 1.000 a 120% do CDI, seu patrimônio atingirá <strong>R$ 10.528,90 Líquidos</strong>.<br>
+                    4. <strong>Automação Alexa</strong>: Skill configurada para alertas diários de vencimento.`);
+                }, 800);
+            });
+
+            document.getElementById('btn-gemini-tab-js').addEventListener('click', () => {
+                document.getElementById('code-gemini-js').classList.remove('hidden');
+                document.getElementById('code-gemini-python').classList.add('hidden');
+                document.getElementById('btn-gemini-tab-js').className = 'pb-2 border-b-2 border-purple-400 text-purple-400';
+                document.getElementById('btn-gemini-tab-python').className = 'pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200';
+            });
+            document.getElementById('btn-gemini-tab-python').addEventListener('click', () => {
+                document.getElementById('code-gemini-js').classList.add('hidden');
+                document.getElementById('code-gemini-python').classList.remove('hidden');
+                document.getElementById('btn-gemini-tab-python').className = 'pb-2 border-b-2 border-purple-400 text-purple-400';
+                document.getElementById('btn-gemini-tab-js').className = 'pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200';
+            });
+        }
+
+        function initModals() {
+            const modalBill = document.getElementById('modal-bill');
+            const modalIncome = document.getElementById('modal-income');
+
+            document.getElementById('btn-add-bill').addEventListener('click', () => {
+                modalBill.classList.remove('hidden');
+            });
+            document.getElementById('btn-close-modal-bill').addEventListener('click', () => {
+                modalBill.classList.add('hidden');
+            });
+            document.getElementById('btn-save-bill').addEventListener('click', () => {
+                const desc = document.getElementById('inp-bill-desc').value || 'Nova Conta';
+                const cat = document.getElementById('inp-bill-cat').value;
+                const val = parseFloat(document.getElementById('inp-bill-val').value) || 100.0;
+                const date = document.getElementById('inp-bill-date').value || '2026-11-25';
+
+                state.bills.push({ id: Date.now(), desc, cat, val, date, paid: false });
+                modalBill.classList.add('hidden');
+                showToast(`Conta "${desc}" adicionada com sucesso!`);
+                recalculate();
+            });
+
+            // Income Modal
+            document.getElementById('btn-edit-income').addEventListener('click', () => {
+                document.getElementById('inp-new-income').value = state.income;
+                modalIncome.classList.remove('hidden');
+            });
+            document.getElementById('btn-close-modal-income').addEventListener('click', () => {
+                modalIncome.classList.add('hidden');
+            });
+            document.getElementById('btn-save-income').addEventListener('click', () => {
+                const newInc = parseFloat(document.getElementById('inp-new-income').value);
+                if (newInc && !isNaN(newInc)) {
+                    state.income = newInc;
+                    modalIncome.classList.add('hidden');
+                    showToast('Renda mensal atualizada com sucesso!');
+                    recalculate();
+                }
+            });
+
+            ['inv-initial', 'inv-monthly', 'inv-cdi', 'inv-rate-pct', 'inv-months'].forEach(id => {
+                document.getElementById(id).addEventListener('input', calculateInvestmentSchedule);
+            });
+
+            document.getElementById('btn-toggle-ir').addEventListener('click', (e) => {
+                state.investmentConfig.useIR = !state.investmentConfig.useIR;
+                e.target.innerText = `IR Regressivo: ${state.investmentConfig.useIR ? 'ON' : 'OFF'}`;
+                showToast(`Tabela de IR Regressivo ${state.investmentConfig.useIR ? 'ativada' : 'desativada'}`);
+                calculateInvestmentSchedule();
+            });
+
+            document.getElementById('btn-export-csv').addEventListener('click', () => {
+                showToast('Relatório do cronograma exportado para CSV com sucesso!');
+            });
+
+            document.getElementById('btn-run-debt-sim').addEventListener('click', () => {
+                const extra = parseFloat(document.getElementById('sim-extra-pay').value) || 0;
+                const strat = document.getElementById('sim-strategy').value;
+                const months = Math.max(6, Math.round(14 - (extra / 100)));
+                const savings = Math.round(1420 + (extra * 1.5));
+                document.getElementById('debt-sim-result').innerHTML = `
+                    <p class="text-slate-400">Tempo total (${strat === 'avalanche' ? 'Avalanche' : 'Bola de Neve'}): <span class="text-emerald-400 font-bold">${months} meses</span></p>
+                    <p class="text-slate-400">Economia estimada em juros: <span class="text-cyan-400 font-bold">R$ ${savings.toLocaleString('pt-BR')},00</span></p>
+                `;
+                showToast('Simulação de quitação recalculada!');
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initTabs();
+            initBudgetChart();
+            initInvestChart();
+            initModals();
+            initAlexaSimulator();
+            initGeminiSimulator();
+            recalculate();
+        });
+    </script>
+</body>
+</html>
