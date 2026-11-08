@@ -943,7 +943,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             <div class="space-y-3 text-xs">
                 <div>
                     <label class="block text-slate-400 mb-1">Descrição</label>
-                    <input id="inp-bill-desc" type="text" placeholder="Ex: Conta de Luz" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
+                    <input id="inp-bill-desc" type="text" required maxlength="160" placeholder="Ex: Conta de Luz" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
                 </div>
                 <div>
                     <label class="block text-slate-400 mb-1">Categoria</label>
@@ -958,11 +958,11 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-slate-400 mb-1">Valor (R$)</label>
-                        <input id="inp-bill-val" type="number" step="0.01" placeholder="250.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
+                        <input id="inp-bill-val" type="number" step="0.01" min="0.01" required placeholder="250.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
                     </div>
                     <div>
                         <label class="block text-slate-400 mb-1">Vencimento</label>
-                        <input id="inp-bill-date" type="date" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
+                        <input id="inp-bill-date" type="date" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
                     </div>
                 </div>
             </div>
@@ -1383,6 +1383,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         let investChart = null;
         let historyChart = null;
         let editingDebtId = null;
+        let editingBillId = null;
         const STORAGE_KEY = 'fincontrol-pro-data-v2';
         const FIREBASE_CONFIG = {
             apiKey: "AIzaSyCBYEIKR647HUc4wITL4hltdLD0jRMJ_Pk",
@@ -2147,13 +2148,57 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                             ${b.paid ? '<i class="fa-solid fa-check mr-1"></i> Paga' : '<i class="fa-solid fa-clock mr-1"></i> Pendente'}
                         </button>
                     </td>
-                    <td class="py-3 px-4 text-right">
-                        <button onclick="deleteBill(${b.id})" class="text-slate-500 hover:text-rose-400 p-1 transition"><i class="fa-solid fa-trash"></i></button>
+                    <td class="py-3 px-4 text-right whitespace-nowrap">
+                        <button type="button" class="edit-bill-button text-sky-300 hover:text-sky-200 p-1.5 transition text-xs" title="${translateUiText('Editar conta', activeLanguage)}">
+                            <i class="fa-solid fa-pen-to-square mr-1" aria-hidden="true"></i>${translateUiText('Editar', activeLanguage)}
+                        </button>
+                        <button onclick="deleteBill(${b.id})" class="text-slate-500 hover:text-rose-400 p-1.5 transition" title="${translateUiText('Excluir', activeLanguage)}"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 `;
+                tr.querySelector('.edit-bill-button').addEventListener('click', () => editBill(b.id));
                 tbody.appendChild(tr);
             });
             document.getElementById('bills-count-badge').innerText = `${state.bills.length} contas cadastradas`;
+        }
+
+        const billLabels = {
+            pt: {newTitle:'Adicionar Nova Conta',editTitle:'Editar conta',newSave:'Salvar Conta',editSave:'Salvar alterações',invalid:'Informe descrição, valor maior que zero e vencimento válido.',missing:'Não foi possível localizar essa conta.',saved:'Conta atualizada com sucesso!',added:'Conta cadastrada com sucesso!'},
+            it: {newTitle:'Aggiungi nuova spesa',editTitle:'Modifica spesa',newSave:'Salva spesa',editSave:'Salva modifiche',invalid:'Inserisci descrizione, importo maggiore di zero e data di scadenza valida.',missing:'Impossibile trovare questa spesa.',saved:'Spesa aggiornata con successo!',added:'Spesa registrata con successo!'},
+            en: {newTitle:'Add new bill',editTitle:'Edit bill',newSave:'Save bill',editSave:'Save changes',invalid:'Enter a description, an amount greater than zero and a valid due date.',missing:'This bill could not be found.',saved:'Bill updated successfully!',added:'Bill added successfully!'},
+            es: {newTitle:'Añadir nueva cuenta',editTitle:'Editar cuenta',newSave:'Guardar cuenta',editSave:'Guardar cambios',invalid:'Introduce una descripción, un importe mayor que cero y una fecha válida.',missing:'No se encontró esta cuenta.',saved:'¡Cuenta actualizada!',added:'¡Cuenta registrada!'}
+        };
+        function billLabel(name) { return (billLabels[activeLanguage] || billLabels.pt)[name]; }
+        function openBillModal(id = null) {
+            const existing = id === null ? null : state.bills.find(b => String(b.id) === String(id));
+            if (id !== null && !existing) { showToast(billLabel('missing')); return; }
+            editingBillId = existing ? existing.id : null;
+            document.getElementById('modal-bill-title').textContent = billLabel(existing ? 'editTitle' : 'newTitle');
+            document.getElementById('btn-save-bill').textContent = billLabel(existing ? 'editSave' : 'newSave');
+            const description = document.getElementById('inp-bill-desc');
+            const category = document.getElementById('inp-bill-cat');
+            const amount = document.getElementById('inp-bill-val');
+            const dueDate = document.getElementById('inp-bill-date');
+            description.value = existing ? (existing.desc || '') : '';
+            category.value = existing ? (existing.cat || 'Moradia') : 'Moradia';
+            if (existing && !Array.from(category.options).some(o => o.value === existing.cat)) {
+                category.add(new Option(existing.cat, existing.cat));
+                category.value = existing.cat;
+            }
+            amount.value = existing ? (Number(existing.val) || 0) : '';
+            const now = new Date();
+            const localDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+            dueDate.value = existing ? (existing.date || localDate) : localDate;
+            const modal = document.getElementById('modal-bill');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            description.focus();
+        }
+        function editBill(id) { openBillModal(id); }
+        function closeBillModal() {
+            editingBillId = null;
+            const modal = document.getElementById('modal-bill');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
         }
 
         function toggleBillPaid(id) {
@@ -2869,21 +2914,28 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
             document.getElementById('history-months').addEventListener('change', renderHistoryAnalysis);
 
-            document.getElementById('btn-add-bill').addEventListener('click', () => {
-                modalBill.classList.remove('hidden');
-            });
-            document.getElementById('btn-close-modal-bill').addEventListener('click', () => {
-                modalBill.classList.add('hidden');
-            });
+            document.getElementById('btn-add-bill').addEventListener('click', () => openBillModal());
+            document.getElementById('btn-close-modal-bill').addEventListener('click', closeBillModal);
             document.getElementById('btn-save-bill').addEventListener('click', () => {
-                const desc = document.getElementById('inp-bill-desc').value || 'Nova Conta';
+                const desc = document.getElementById('inp-bill-desc').value.trim();
                 const cat = document.getElementById('inp-bill-cat').value;
-                const val = parseFloat(document.getElementById('inp-bill-val').value) || 100.0;
-                const date = document.getElementById('inp-bill-date').value || '2026-11-25';
-
-                state.bills.push({ id: Date.now(), desc, cat, val, date, paid: false, repeat: 'monthly' });
-                modalBill.classList.add('hidden');
-                showToast(`Conta "${desc}" adicionada com sucesso!`);
+                const rawAmount = document.getElementById('inp-bill-val').value;
+                const val = Number(rawAmount);
+                const date = document.getElementById('inp-bill-date').value;
+                if (!desc || !Number.isFinite(val) || val <= 0 || !/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(date) || !Number.isFinite(new Date(date + 'T12:00:00').getTime())) {
+                    showToast(billLabel('invalid'));
+                    return;
+                }
+                if (editingBillId !== null) {
+                    const bill = state.bills.find(b => String(b.id) === String(editingBillId));
+                    if (!bill) { showToast(billLabel('missing')); closeBillModal(); return; }
+                    Object.assign(bill, { desc, cat, val, date });
+                    showToast(billLabel('saved'));
+                } else {
+                    state.bills.push({ id: Date.now(), desc, cat, val, date, paid: false, repeat: 'monthly' });
+                    showToast(billLabel('added'));
+                }
+                closeBillModal();
                 recalculate();
             });
 
