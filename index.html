@@ -1468,7 +1468,6 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         function initAuthUI() {
-            initLanguageSelector();
             const form = document.getElementById('auth-form');
             const submit = document.getElementById('auth-submit');
             const create = document.getElementById('auth-create');
@@ -2707,7 +2706,13 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         window.addEventListener('DOMContentLoaded', () => {
-            initAuthUI();
+            // Login deve funcionar mesmo se tradução ou outros módulos falharem.
+            try { initAuthUI(); } catch (error) {
+                console.error('Falha ao iniciar login:', error);
+                const box = document.getElementById('auth-error');
+                if (box) { box.textContent = 'Erro ao iniciar o login. Atualize a página (Ctrl+F5).'; box.classList.remove('hidden'); }
+            }
+            try { initLanguageSelector(); } catch (error) { console.error('Falha na tradução:', error); }
             initTabs();
             initBudgetChart();
             initInvestChart();
