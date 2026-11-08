@@ -1220,15 +1220,788 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         function billOccursInMonth(bill, monthDate) {
-            const first = new Date((bill.date || '2000-01-01') + 'T12:00:00');
+            const rawDate = String(bill.date || '').trim();
+            let first;
+            if (rawDate.indexOf('-') === 4 && rawDate.length >= 10) first = new Date(rawDate.slice(0, 10) + 'T12:00:00');
+            else if (rawDate.indexOf('/') > -1) {
+                const parts = rawDate.split('/');
+                first = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]), 12);
+            } else if (!rawDate) first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1, 12);
+            else first = new Date(rawDate);
+            if (Number.isNaN(first.getTime())) first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1, 12);
             const target = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
             const firstMonth = new Date(first.getFullYear(), first.getMonth(), 1);
             const diff = (target.getFullYear() - firstMonth.getFullYear()) * 12 + target.getMonth() - firstMonth.getMonth();
             if (diff < 0) return false;
-            // Bills already present in the app remain recurring for compatibility.
             if (bill.repeat === 'once') return diff === 0;
             if (bill.repeat === 'limited') return diff < Math.max(1, Number(bill.durationMonths) || 1);
             return true;
+        }
+
+        function billAmountForAnalysis(bill) {
+            const raw = bill.val !== undefined ? bill.val : (bill.amount !== undefined ? bill.amount : bill.value || 0);
+            if (typeof raw === 'string') {
+                const normalized = raw.trim().replace('R
+
+        function renderHistoryAnalysis() {
+            const table = document.getElementById('history-table');
+            if (!table) return;
+            const months = Number(document.getElementById('history-months')?.value || 12);
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth(), 1);
+            const currentKey = currentInvestmentMonthKey(now);
+            const rows = [];
+            let cumulative = 0, incomeTotal = 0, expenseTotal = 0, investmentTotal = 0;
+
+            for (let i = 0; i < months; i++) {
+                const dt = new Date(start.getFullYear(), start.getMonth() + i, 1);
+                const monthKey = currentInvestmentMonthKey(dt);
+                const key = dt.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+                const bills = (Array.isArray(state.bills) ? state.bills : []).reduce((sum, bill) => sum + (billOccursInMonth(bill, dt) ? billAmountForAnalysis(bill) : 0), 0);
+                let debtPay = 0;
+                state.debts.forEach(debt => {
+                    const first = debt.startDate || (start.getFullYear() + '-' + String(start.getMonth() + 1).padStart(2, '0') + '-01');
+                    const firstDate = new Date(first + 'T12:00:00');
+                    const dueIndex = (dt.getFullYear() - firstDate.getFullYear()) * 12 + dt.getMonth() - firstDate.getMonth();
+                    const paid = Number(debt.paidCount) || 0;
+                    const count = Number(debt.installmentCount) || 0;
+                    if (count > 0 && dueIndex >= paid && dueIndex < count) debtPay += installmentForDebt(debt, dueIndex);
+                    else if (!count && dueIndex === 0) debtPay += Number(debt.minPayment) || 0;
+                });
+
+                const hasActualInvestment = Object.prototype.hasOwnProperty.call(state.monthlyInvestments || {}, monthKey);
+                const isFuture = dt > new Date(now.getFullYear(), now.getMonth(), 1);
+                const monthlyInvestment = hasActualInvestment
+                    ? Math.max(0, Number(state.monthlyInvestments[monthKey]) || 0)
+                    : (isFuture ? Math.max(0, Number(state.investmentConfig.monthly) || 0) : 0);
+                const initialInvestment = i === 0 ? Math.max(0, Number(state.investmentConfig.initial) || 0) : 0;
+                const investment = monthlyInvestment + initialInvestment;
+                const net = state.income - bills - debtPay - investment;
+                cumulative += net;
+                incomeTotal += state.income;
+                expenseTotal += bills + debtPay;
+                investmentTotal += investment;
+                rows.push({ key, income: state.income, bills, debtPay, investment, investmentStatus: hasActualInvestment ? 'Realizado' : (isFuture ? 'Planejado' : (initialInvestment ? 'Inclui aporte inicial' : 'Sem registro')), net, cumulative });
+            }
+
+            document.getElementById('hist-income').textContent = formatBRL(incomeTotal);
+            document.getElementById('hist-expenses').textContent = formatBRL(expenseTotal);
+            document.getElementById('hist-investments').textContent = formatBRL(investmentTotal);
+            document.getElementById('hist-net').textContent = formatBRL(cumulative);
+            table.innerHTML = rows.map(row => '<tr class="text-slate-300"><td class="p-3 font-semibold">' + row.key + '</td>' +
+                '<td class="p-3 text-emerald-400">' + formatBRL(row.income) + '</td>' +
+                '<td class="p-3">' + formatBRL(row.bills) + '</td>' +
+                '<td class="p-3 text-rose-300">' + formatBRL(row.debtPay) + '</td>' +
+                '<td class="p-3 text-violet-300">' + formatBRL(row.investment) + '<span class="block text-[10px] text-slate-500">' + row.investmentStatus + '</span></td>' +
+                '<td class="p-3 font-semibold ' + (row.net < 0 ? 'text-rose-400' : 'text-cyan-300') + '">' + formatBRL(row.net) + '</td>' +
+                '<td class="p-3">' + formatBRL(row.cumulative) + '</td></tr>').join('');
+
+            if (historyChart) {
+                historyChart.data.labels = rows.map(row => row.key);
+                historyChart.data.datasets[0].data = rows.map(row => row.income);
+                historyChart.data.datasets[1].data = rows.map(row => row.bills + row.debtPay);
+                if (historyChart.data.datasets[2]) historyChart.data.datasets[2].data = rows.map(row => row.investment);
+                historyChart.update();
+            }
+        }
+
+        function initHistoryChart() {
+            const canvas = document.getElementById('chart-history');
+            if (!canvas || typeof Chart === 'undefined') return;
+            historyChart = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Receitas', data: [], backgroundColor: '#10b981' },
+                        { label: 'Despesas e parcelas', data: [], backgroundColor: '#f43f5e' },
+                        { label: 'Investimentos', data: [], backgroundColor: '#8b5cf6' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+                        y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+                    }
+                }
+            });
+        }
+
+        function initTabs() {
+            const tabs = document.querySelectorAll('#nav-tabs button');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const target = tab.getAttribute('data-tab');
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+                    const activeContent = document.getElementById(`tab-${target}`);
+                    if (activeContent) activeContent.classList.remove('hidden');
+
+                    if (target === 'dashboard' && budgetChart) budgetChart.update();
+                    if (target === 'investments' && investChart) investChart.update();
+                    if (target === 'history') renderHistoryAnalysis();
+                });
+            });
+        }
+
+        function recalculate() {
+            const totalBills = state.bills.reduce((acc, b) => acc + b.val, 0);
+            const pendingBills = state.bills.filter(b => !b.paid).reduce((acc, b) => acc + b.val, 0);
+            const totalDebtsPay = state.debts.reduce((acc, d) => acc + d.minPayment, 0);
+            const totalDebtBalance = state.debts.reduce((acc, d) => acc + d.balance, 0);
+            const monthlyInvest = state.investmentConfig.monthly;
+
+            const freeBalance = state.income - (totalBills + totalDebtsPay);
+            const committedPct = Math.round(((totalBills + totalDebtsPay) / Math.max(state.income, 1)) * 100);
+
+            document.getElementById('hdr-income').innerText = formatBRL(state.income);
+            document.getElementById('hdr-free-balance').innerText = formatBRL(freeBalance);
+            document.getElementById('card-income').innerText = formatBRL(state.income);
+
+            document.getElementById('card-bills-total').innerText = formatBRL(totalBills);
+            document.getElementById('card-bills-pending').innerText = `${formatBRL(pendingBills)} pendentes este mês`;
+
+            document.getElementById('card-debts-total').innerText = formatBRL(totalDebtsPay);
+            document.getElementById('card-debts-balance').innerText = `Saldo devedor total: ${formatBRL(totalDebtBalance)}`;
+
+            document.getElementById('card-free-balance').innerText = formatBRL(freeBalance);
+            document.getElementById('pct-committed').innerText = `${committedPct}% comprometido`;
+
+            const billsPct = Math.round((totalBills / Math.max(state.income, 1)) * 100);
+            const debtsPct = Math.round((totalDebtsPay / Math.max(state.income, 1)) * 100);
+            const investPct = Math.round((monthlyInvest / Math.max(state.income, 1)) * 100);
+            const freePct = Math.max(0, 100 - (billsPct + debtsPct + investPct));
+
+            document.getElementById('bar-bills').style.width = `${billsPct}%`;
+            document.getElementById('bar-debts').style.width = `${debtsPct}%`;
+            document.getElementById('bar-invest').style.width = `${investPct}%`;
+            document.getElementById('bar-free').style.width = `${freePct}%`;
+
+            document.getElementById('lbl-bills-pct').innerText = `${billsPct}%`;
+            document.getElementById('lbl-debts-pct').innerText = `${debtsPct}%`;
+            document.getElementById('lbl-invest-pct').innerText = `${investPct}%`;
+            document.getElementById('lbl-free-pct').innerText = `${freePct}%`;
+
+            renderUpcomingBills();
+            renderBillsTable();
+            renderDebtsList();
+            renderHistoryAnalysis();
+            saveAppData();
+            updateBudgetChart(totalBills, totalDebtsPay, monthlyInvest, Math.max(0, freeBalance - monthlyInvest));
+            calculateInvestmentSchedule();
+        }
+
+        function renderUpcomingBills() {
+            const container = document.getElementById('dash-upcoming-list');
+            container.innerHTML = '';
+
+            const pending = state.bills.filter(b => !b.paid).slice(0, 3);
+            if (pending.length === 0) {
+                container.innerHTML = '<p class="text-xs text-emerald-400 py-2"><i class="fa-solid fa-circle-check mr-1"></i> Todas as contas deste mês estão pagas!</p>';
+                return;
+            }
+
+            pending.forEach(b => {
+                const item = document.createElement('div');
+                item.className = 'flex justify-between items-center bg-slate-950 p-3 rounded-lg border border-slate-800/80';
+                item.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 bg-amber-500/10 rounded-lg text-amber-400">
+                            <i class="fa-solid fa-calendar-day"></i>
+                        </div>
+                        <div>
+                            <p class="font-semibold text-xs text-slate-200">${b.desc}</p>
+                            <p class="text-[10px] text-slate-400">Vence em: ${b.date.split('-').reverse().join('/')} • ${b.cat}</p>
+                        </div>
+                    </div>
+                    <span class="font-bold text-xs text-amber-400">${formatBRL(b.val)}</span>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function renderBillsTable() {
+            const tbody = document.getElementById('tbl-bills-body');
+            tbody.innerHTML = '';
+
+            state.bills.forEach(b => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-850 transition';
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-medium text-slate-200">${b.desc}</td>
+                    <td class="py-3 px-4"><span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[11px]">${b.cat}</span></td>
+                    <td class="py-3 px-4">${b.date.split('-').reverse().join('/')}</td>
+                    <td class="py-3 px-4 font-bold text-white">${formatBRL(b.val)}</td>
+                    <td class="py-3 px-4">
+                        <button onclick="toggleBillPaid(${b.id})" class="px-2.5 py-1 rounded-full text-[11px] font-semibold border transition ${b.paid ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}">
+                            ${b.paid ? '<i class="fa-solid fa-check mr-1"></i> Paga' : '<i class="fa-solid fa-clock mr-1"></i> Pendente'}
+                        </button>
+                    </td>
+                    <td class="py-3 px-4 text-right">
+                        <button onclick="deleteBill(${b.id})" class="text-slate-500 hover:text-rose-400 p-1 transition"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('bills-count-badge').innerText = `${state.bills.length} contas cadastradas`;
+        }
+
+        function toggleBillPaid(id) {
+            const bill = state.bills.find(b => b.id === id);
+            if (bill) {
+                bill.paid = !bill.paid;
+                showToast(`Status da conta "${bill.desc}" atualizado!`);
+                recalculate();
+            }
+        }
+
+        function deleteBill(id) {
+            const bill = state.bills.find(b => b.id === id);
+            state.bills = state.bills.filter(b => b.id !== id);
+            if (bill) showToast(`Conta "${bill.desc}" removida.`);
+            recalculate();
+        }
+
+        function editDebt(id) {
+            const debt = state.debts.find(item => Number(item.id) === Number(id));
+            if (!debt) { showToast('Não foi possível localizar essa dívida.'); return; }
+            editingDebtId = debt.id;
+            document.getElementById('debt-modal-title').innerText = 'Editar dívida';
+            document.getElementById('debt-save').innerText = 'Salvar alterações';
+            document.getElementById('debt-desc').value = debt.desc || '';
+            document.getElementById('debt-total').value = debt.total || debt.balance || 0;
+            document.getElementById('debt-count').value = debt.installmentCount || 12;
+            document.getElementById('debt-installment').value = debt.installment || debt.minPayment || '';
+            document.getElementById('debt-rate').value = debt.ratePct || 0;
+            document.getElementById('debt-start').value = debt.startDate || new Date().toLocaleDateString('en-CA');
+            document.getElementById('debt-paid').value = debt.paidCount || 0;
+            const modal = document.getElementById('modal-debt');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function renderDebtsList() {
+            const container = document.getElementById('debts-list-container');
+            container.innerHTML = '';
+
+            state.debts.forEach(d => {
+                const card = document.createElement('div');
+                card.className = 'bg-slate-950 border border-slate-800 rounded-lg p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3';
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h4 class="font-bold text-xs text-white">${d.desc}</h4>
+                            <span class="bg-rose-500/10 text-rose-400 text-[10px] px-2 py-0.5 rounded border border-rose-500/20">${d.ratePct}% a.m.</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">Saldo Devedor: <strong class="text-rose-400">${formatBRL(d.balance)}</strong></p>
+                    </div>
+                    <div class="text-right flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-0 border-slate-800 pt-2 sm:pt-0">
+                        <div>
+                            <p class="text-[10px] text-slate-500 uppercase">Parcela Mínima</p>
+                            <p class="font-bold text-xs text-slate-200">${formatBRL(d.minPayment)}/mês</p>
+                        </div>
+                        <button type="button" onclick="editDebt(${Number(d.id)})" class="px-3 py-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-pen-to-square mr-1"></i> Editar</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function initBudgetChart() {
+            const ctx = document.getElementById('chart-budget').getContext('2d');
+            budgetChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Contas Fixas', 'Dívidas', 'Investimentos', 'Saldo Livre'],
+                    datasets: [{
+                        data: [2200, 1000, 1000, 800],
+                        backgroundColor: ['#f59e0b', '#f43f5e', '#10b981', '#334155'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        function updateBudgetChart(bills, debts, invest, free) {
+            if (!budgetChart) return;
+            budgetChart.data.datasets[0].data = [bills, debts, invest, free];
+            budgetChart.update();
+        }
+
+        function currentInvestmentMonthKey(date = new Date()) {
+            return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
+        }
+
+        function investmentMonthKeyOffset(offset) {
+            const date = new Date();
+            date.setDate(1);
+            date.setMonth(date.getMonth() + offset);
+            return currentInvestmentMonthKey(date);
+        }
+
+        function formatInvestmentMonth(key) {
+            const parts = key.split('-').map(Number);
+            return new Date(parts[0], parts[1] - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        }
+
+        function renderInvestmentAnalysis() {
+            const records = Object.entries(state.monthlyInvestments || {}).map(([month, amount]) => ({ month, amount: Number(amount) }))
+                .filter(item => item.month.length === 7 && item.month[4] === '-' && Number.isFinite(item.amount) && item.amount >= 0)
+                .sort((a, b) => a.month.localeCompare(b.month));
+            const total = records.reduce((sum, item) => sum + item.amount, 0);
+            document.getElementById('inv-record-total').innerText = formatBRL(total);
+            document.getElementById('inv-record-average').innerText = formatBRL(records.length ? total / records.length : 0);
+            document.getElementById('inv-record-count').innerText = String(records.length);
+            const list = document.getElementById('inv-record-list');
+            list.innerHTML = '';
+            if (!records.length) {
+                list.innerHTML = '<p class="text-slate-500">Nenhum aporte registrado ainda.</p>';
+                return;
+            }
+            records.slice().reverse().forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between gap-3 bg-slate-950 rounded-lg px-3 py-2';
+                const month = document.createElement('span');
+                month.className = 'capitalize text-slate-300';
+                month.textContent = formatInvestmentMonth(item.month);
+                const amount = document.createElement('strong');
+                amount.className = 'text-emerald-400';
+                amount.textContent = formatBRL(item.amount);
+                row.append(month, amount);
+                list.appendChild(row);
+            });
+        }
+
+        function calculateInvestmentSchedule() {
+            const initial = Math.max(0, parseFloat(document.getElementById('inv-initial').value) || 0);
+            const monthly = Math.max(0, parseFloat(document.getElementById('inv-monthly').value) || 0);
+            const cdi = Math.max(0, parseFloat(document.getElementById('inv-cdi').value) || 13.6);
+            const ratePct = Math.max(0, parseFloat(document.getElementById('inv-rate-pct').value) || 120);
+            const monthsCount = Math.min(60, Math.max(1, parseInt(document.getElementById('inv-months').value, 10) || 8));
+            state.investmentConfig = { initial, monthly, cdiAnnual: cdi, ratePct, months: monthsCount, useIR: state.investmentConfig.useIR };
+            const annualRate = (cdi / 100) * (ratePct / 100);
+            const monthlyRate = Math.pow(1 + annualRate, 1 / 12) - 1;
+            let currentBalance = initial;
+            let totalInvested = initial;
+            let totalInterest = 0;
+            const tbody = document.getElementById('tbl-schedule-body');
+            tbody.innerHTML = '';
+            const chartLabels = [];
+            const chartInvestedData = [];
+            const chartBalanceData = [];
+            for (let i = 0; i < monthsCount; i++) {
+                const monthKey = investmentMonthKeyOffset(i);
+                const monthLabel = formatInvestmentMonth(monthKey);
+                const hasActual = Object.prototype.hasOwnProperty.call(state.monthlyInvestments || {}, monthKey);
+                const aporte = hasActual ? Math.max(0, Number(state.monthlyInvestments[monthKey]) || 0) : (i === 0 ? 0 : monthly);
+                totalInvested += aporte;
+                const startBalance = currentBalance + aporte;
+                const monthInterest = startBalance * monthlyRate;
+                totalInterest += monthInterest;
+                currentBalance = startBalance + monthInterest;
+                const days = (i + 1) * 30;
+                let irRate = 0.225;
+                if (days > 180 && days <= 360) irRate = 0.20;
+                else if (days > 360 && days <= 720) irRate = 0.175;
+                else if (days > 720) irRate = 0.15;
+                const irTax = state.investmentConfig.useIR ? totalInterest * irRate : 0;
+                const netBalance = currentBalance - irTax;
+                chartLabels.push(monthLabel.split(' ')[0]);
+                chartInvestedData.push(totalInvested);
+                chartBalanceData.push(currentBalance);
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-850 transition';
+                tr.innerHTML = '<td class="py-3 px-4 font-semibold text-slate-200 capitalize">' + monthLabel + '</td>' +
+                    '<td class="py-3 px-4">' + formatBRL(startBalance - aporte) + '</td>' +
+                    '<td class="py-3 px-4 text-emerald-400 font-medium">+' + formatBRL(aporte) + '<span class="block text-[10px] text-slate-500">' + (hasActual ? 'Realizado' : (i === 0 ? 'Sem registro' : 'Planejado')) + '</span></td>' +
+                    '<td class="py-3 px-4 text-cyan-400 font-semibold">+' + formatBRL(monthInterest) + '</td>' +
+                    '<td class="py-3 px-4"><span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[11px]">' + (irRate * 100).toFixed(1) + '%</span></td>' +
+                    '<td class="py-3 px-4 font-bold text-white">' + formatBRL(currentBalance) + '</td>' +
+                    '<td class="py-3 px-4 text-right font-bold text-emerald-400">' + formatBRL(netBalance) + '</td>';
+                tbody.appendChild(tr);
+            }
+            const finalIrRate = monthsCount * 30 > 180 ? 0.20 : 0.225;
+            const estIrTotal = state.investmentConfig.useIR ? totalInterest * finalIrRate : 0;
+            document.getElementById('kpi-total-invested').innerText = formatBRL(totalInvested);
+            document.getElementById('kpi-total-interest').innerText = formatBRL(totalInterest);
+            document.getElementById('kpi-total-ir').innerText = formatBRL(estIrTotal);
+            document.getElementById('kpi-final-balance').innerText = formatBRL(currentBalance - estIrTotal);
+            updateInvestChart(chartLabels, chartInvestedData, chartBalanceData);
+            renderInvestmentAnalysis();
+        }
+
+        function initInvestChart() {
+            const ctx = document.getElementById('chart-investment').getContext('2d');
+            investChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Total Investido (Aportes)',
+                            data: [],
+                            borderColor: '#94a3b8',
+                            backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Saldo Total (Juros Compostos)',
+                            data: [],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { color: '#94a3b8' } }
+                    },
+                    scales: {
+                        x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
+                        y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } }
+                    }
+                }
+            });
+        }
+
+        function updateInvestChart(labels, invested, balance) {
+            if (!investChart) return;
+            investChart.data.labels = labels;
+            investChart.data.datasets[0].data = invested;
+            investChart.data.datasets[1].data = balance;
+            investChart.update();
+        }
+
+        function initAlexaSimulator() {
+            const output = document.getElementById('alexa-speech-output');
+            const btns = document.querySelectorAll('.btn-alexa-cmd');
+
+            btns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const cmd = btn.getAttribute('data-alexa-cmd');
+                    if (cmd === 'saldo') {
+                        const free = document.getElementById('hdr-free-balance').innerText;
+                        output.innerText = `"Com base nos seus dados atuais, você tem ${free} de saldo livre estimado para este mês."`;
+                    } else if (cmd === 'investimento') {
+                        const finalVal = document.getElementById('kpi-final-balance').innerText;
+                        output.innerText = `"Considerando seus aportes de 1.000 reais por mês a 120% do CDI, em Junho de 2027 você terá aproximadamente ${finalVal} acumulados."`;
+                    } else if (cmd === 'contas') {
+                        const pendingCount = state.bills.filter(b => !b.paid).length;
+                        output.innerText = `"Você possui ${pendingCount} contas pendentes para vencer neste mês. A próxima é ${state.bills[1].desc} no valor de ${formatBRL(state.bills[1].val)}."`;
+                    } else if (cmd === 'aporte') {
+                        output.innerText = `"Aporte de R$ 1.000,00 registrado com sucesso na sua projeção de investimentos para o próximo mês."`;
+                    }
+                });
+            });
+
+            document.getElementById('btn-alexa-tab-json').addEventListener('click', () => {
+                document.getElementById('code-alexa-json').classList.remove('hidden');
+                document.getElementById('code-alexa-node').classList.add('hidden');
+                document.getElementById('btn-alexa-tab-json').className = 'pb-2 border-b-2 border-cyan-400 text-cyan-400';
+                document.getElementById('btn-alexa-tab-node').className = 'pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200';
+            });
+            document.getElementById('btn-alexa-tab-node').addEventListener('click', () => {
+                document.getElementById('code-alexa-json').classList.add('hidden');
+                document.getElementById('code-alexa-node').classList.remove('hidden');
+                document.getElementById('btn-alexa-tab-node').className = 'pb-2 border-b-2 border-cyan-400 text-cyan-400';
+                document.getElementById('btn-alexa-tab-json').className = 'pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200';
+            });
+        }
+
+        function initGeminiSimulator() {
+            const chatHistory = document.getElementById('gemini-chat-history');
+            const userInput = document.getElementById('gemini-user-input');
+            const btnSend = document.getElementById('btn-send-gemini');
+
+            function addMessage(role, text) {
+                const msg = document.createElement('div');
+                msg.className = 'flex items-start space-x-2';
+                if (role === 'user') {
+                    msg.innerHTML = `
+                        <div class="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-white text-xs flex-shrink-0">Você</div>
+                        <div class="bg-slate-800 rounded-xl p-3 text-slate-200 max-w-xl">
+                            <p class="font-semibold text-slate-400 mb-1">Sua Pergunta</p>
+                            <p>${text}</p>
+                        </div>
+                    `;
+                } else {
+                    msg.innerHTML = `
+                        <div class="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs flex-shrink-0">G</div>
+                        <div class="bg-slate-950 border border-purple-500/30 rounded-xl p-3 text-slate-200 max-w-xl">
+                            <p class="font-semibold text-purple-300 mb-1">Gemini AI Advisor</p>
+                            <p>${text}</p>
+                        </div>
+                    `;
+                }
+                chatHistory.appendChild(msg);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+
+            function handleSend() {
+                const text = userInput.value.trim();
+                if (!text) return;
+                addMessage('user', text);
+                userInput.value = '';
+
+                setTimeout(() => {
+                    let aiReply = "Analisei sua solicitação. Com base na sua taxa de juros atual e saldo devedor, a recomendação é focar na quitação do Cartão de Crédito (11,5% a.m.) antes de aumentar os aportes no CDI.";
+                    if (text.toLowerCase().includes('anomalia') || text.toLowerCase().includes('gasto')) {
+                        aiReply = "🔍 **Análise de Anomalias Gemini**: Seus gastos com Moradia e Serviços representam 33.6% da renda. Não foram detectadas anomalias graves, mas o cartão de crédito gera R$ 517,50 em juros/mês se não for quitado.";
+                    } else if (text.toLowerCase().includes('reserva')) {
+                        aiReply = "🛡️ **Cálculo de Reserva de Emergência**: Para cobrir 6 meses das suas contas fixas (R$ 2.200/mês), sua reserva ideal é de **R$ 13.200,00**. Com seu saldo livre de R$ 1.800, você pode alcançá-la em 7.3 meses.";
+                    } else if (text.toLowerCase().includes('cdi') || text.toLowerCase().includes('comparar')) {
+                        aiReply = "📈 **Comparativo de Investimentos (Gemini AI)**:<br>• **CDI 120% (LCI/LCA isento)**: ~13.6% a.a. líquido.<br>• **Tesouro IPCA+ 2029**: IPCA + 6.45% a.a. (Proteção contra inflação).<br>Recomendamos manter 70% no CDI 120% e 30% em IPCA+ para otimização de risco.";
+                    }
+                    addMessage('ai', aiReply);
+                }, 600);
+            }
+
+            btnSend.addEventListener('click', handleSend);
+            userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
+
+            document.querySelectorAll('.btn-gemini-prompt').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const promptText = btn.innerText.replace(/^[^\"]*\"/, '').replace(/\"$/, '');
+                    userInput.value = promptText;
+                    handleSend();
+                });
+            });
+
+            document.getElementById('btn-quick-ask-gemini').addEventListener('click', () => {
+                const tabs = document.querySelectorAll('#nav-tabs button');
+                tabs.forEach(t => t.classList.remove('active'));
+                document.querySelector('[data-tab="gemini"]').classList.add('active');
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+                document.getElementById('tab-gemini').classList.remove('hidden');
+            });
+
+            document.getElementById('btn-generate-ai-report').addEventListener('click', () => {
+                addMessage('user', 'Gerar Diagnóstico Financeiro Completo');
+                setTimeout(() => {
+                    addMessage('ai', `📊 <strong>DIAGNÓSTICO FINANCEIRO COMPLETO (GEMINI AI)</strong><br><br>
+                    1. <strong>Saúde Financeira</strong>: Pontuação 7.2/10. Comprometimento de 64% da renda.<br>
+                    2. <strong>Plano de Ação Dívidas</strong>: Aloque R$ 300/mês extras no Cartão de Crédito (Estratégia Avalanche). Quitação total em 11 meses.<br>
+                    3. <strong>Metas de Investimento</strong>: Em Junho de 2027, mantendo aportes de R$ 1.000 a 120% do CDI, seu patrimônio atingirá <strong>R$ 10.528,90 Líquidos</strong>.<br>
+                    4. <strong>Automação Alexa</strong>: Skill configurada para alertas diários de vencimento.`);
+                }, 800);
+            });
+
+            document.getElementById('btn-gemini-tab-js').addEventListener('click', () => {
+                document.getElementById('code-gemini-js').classList.remove('hidden');
+                document.getElementById('code-gemini-python').classList.add('hidden');
+                document.getElementById('btn-gemini-tab-js').className = 'pb-2 border-b-2 border-purple-400 text-purple-400';
+                document.getElementById('btn-gemini-tab-python').className = 'pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200';
+            });
+            document.getElementById('btn-gemini-tab-python').addEventListener('click', () => {
+                document.getElementById('code-gemini-js').classList.add('hidden');
+                document.getElementById('code-gemini-python').classList.remove('hidden');
+                document.getElementById('btn-gemini-tab-python').className = 'pb-2 border-b-2 border-purple-400 text-purple-400';
+                document.getElementById('btn-gemini-tab-js').className = 'pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200';
+            });
+        }
+
+        function initModals() {
+            const modalBill = document.getElementById('modal-bill');
+            const modalIncome = document.getElementById('modal-income');
+            const modalDebt = document.getElementById('modal-debt');
+
+            document.getElementById('btn-add-debt').addEventListener('click', () => {
+                editingDebtId = null;
+                document.getElementById('debt-modal-title').innerText = 'Cadastrar dívida parcelada';
+                document.getElementById('debt-save').innerText = 'Salvar dívida';
+                ['debt-desc', 'debt-total', 'debt-installment'].forEach(id => document.getElementById(id).value = '');
+                document.getElementById('debt-count').value = '12';
+                document.getElementById('debt-rate').value = '0';
+                document.getElementById('debt-paid').value = '0';
+                document.getElementById('debt-start').value = new Date().toLocaleDateString('en-CA');
+                modalDebt.classList.remove('hidden');
+                modalDebt.classList.add('flex');
+            });
+            document.getElementById('debt-cancel').addEventListener('click', () => {
+                modalDebt.classList.add('hidden');
+                modalDebt.classList.remove('flex');
+            });
+            document.getElementById('debt-save').addEventListener('click', () => {
+                const desc = document.getElementById('debt-desc').value.trim();
+                const total = Number(document.getElementById('debt-total').value);
+                const count = Math.floor(Number(document.getElementById('debt-count').value));
+                const enteredInstallment = Number(document.getElementById('debt-installment').value);
+                const rate = Number(document.getElementById('debt-rate').value) || 0;
+                const startDate = document.getElementById('debt-start').value;
+                const paid = Math.floor(Number(document.getElementById('debt-paid').value) || 0);
+
+                if (!desc || !(total > 0) || !(count > 0) || count > 600 || !startDate || rate < 0 || paid < 0 || paid > count) {
+                    showToast('Confira a descrição, o valor, as parcelas, os juros e o vencimento.');
+                    return;
+                }
+                const monthlyRate = rate / 100;
+                const calculated = monthlyRate === 0
+                    ? total / count
+                    : total * monthlyRate / (1 - Math.pow(1 + monthlyRate, -count));
+                const installment = enteredInstallment > 0 ? enteredInstallment : calculated;
+                const schedule = Array.from({ length: count }, (_, index) => ({
+                    number: index + 1,
+                    date: addMonths(startDate, index),
+                    value: Math.round(installment * 100) / 100,
+                    paid: index < paid
+                }));
+                const remaining = schedule.slice(paid).reduce((sum, item) => sum + item.value, 0);
+                const debtData = {
+                    desc, balance: remaining, ratePct: rate,
+                    minPayment: installment, installment, installmentCount: count,
+                    paidCount: paid, startDate, total, schedule
+                };
+                if (editingDebtId !== null) {
+                    const debtIndex = state.debts.findIndex(item => Number(item.id) === Number(editingDebtId));
+                    if (debtIndex !== -1) state.debts[debtIndex] = { ...state.debts[debtIndex], ...debtData };
+                    showToast('Dívida atualizada com sucesso!');
+                } else {
+                    state.debts.push({ id: Date.now(), ...debtData });
+                    showToast('Dívida cadastrada com sucesso!');
+                }
+                editingDebtId = null;
+                document.getElementById('debt-modal-title').innerText = 'Cadastrar dívida parcelada';
+                document.getElementById('debt-save').innerText = 'Salvar dívida';
+                modalDebt.classList.add('hidden');
+                modalDebt.classList.remove('flex');
+                ['debt-desc', 'debt-total', 'debt-installment'].forEach(id => document.getElementById(id).value = '');
+                document.getElementById('debt-count').value = '12';
+                document.getElementById('debt-rate').value = '0';
+                document.getElementById('debt-paid').value = '0';
+                showToast('Dívida cadastrada com sucesso!');
+                recalculate();
+            });
+
+            document.getElementById('history-months').addEventListener('change', renderHistoryAnalysis);
+
+            document.getElementById('btn-add-bill').addEventListener('click', () => {
+                modalBill.classList.remove('hidden');
+            });
+            document.getElementById('btn-close-modal-bill').addEventListener('click', () => {
+                modalBill.classList.add('hidden');
+            });
+            document.getElementById('btn-save-bill').addEventListener('click', () => {
+                const desc = document.getElementById('inp-bill-desc').value || 'Nova Conta';
+                const cat = document.getElementById('inp-bill-cat').value;
+                const val = parseFloat(document.getElementById('inp-bill-val').value) || 100.0;
+                const date = document.getElementById('inp-bill-date').value || '2026-11-25';
+
+                state.bills.push({ id: Date.now(), desc, cat, val, date, paid: false, repeat: 'monthly' });
+                modalBill.classList.add('hidden');
+                showToast(`Conta "${desc}" adicionada com sucesso!`);
+                recalculate();
+            });
+
+            // Income Modal
+            document.getElementById('btn-edit-income').addEventListener('click', () => {
+                document.getElementById('inp-new-income').value = state.income;
+                modalIncome.classList.remove('hidden');
+            });
+            document.getElementById('btn-close-modal-income').addEventListener('click', () => {
+                modalIncome.classList.add('hidden');
+            });
+            document.getElementById('btn-save-income').addEventListener('click', () => {
+                const newInc = parseFloat(document.getElementById('inp-new-income').value);
+                if (newInc && !isNaN(newInc)) {
+                    state.income = newInc;
+                    modalIncome.classList.add('hidden');
+                    showToast('Renda mensal atualizada com sucesso!');
+                    recalculate();
+                }
+            });
+
+            const recordMonthInput = document.getElementById('inv-record-month');
+            if (recordMonthInput) recordMonthInput.value = currentInvestmentMonthKey();
+            document.getElementById('btn-save-investment-record').addEventListener('click', () => {
+                const month = recordMonthInput.value;
+                const rawAmount = document.getElementById('inv-record-amount').value;
+                const amount = Number(rawAmount);
+                if (month.length !== 7 || month[4] !== '-' || rawAmount.trim() === '' || !Number.isFinite(amount) || amount < 0) {
+                    showToast('Informe um mês e um valor válido para o aporte.');
+                    return;
+                }
+                state.monthlyInvestments = state.monthlyInvestments || {};
+                state.monthlyInvestments[month] = Math.round(amount * 100) / 100;
+                saveAppData();
+                calculateInvestmentSchedule();
+                document.getElementById('inv-record-amount').value = '';
+                showToast('Aporte mensal registrado e cronograma atualizado!');
+            });
+
+            ['inv-initial', 'inv-monthly', 'inv-cdi', 'inv-rate-pct', 'inv-months'].forEach(id => {
+                document.getElementById(id).addEventListener('input', calculateInvestmentSchedule);
+            });
+
+            document.getElementById('btn-toggle-ir').addEventListener('click', (e) => {
+                state.investmentConfig.useIR = !state.investmentConfig.useIR;
+                e.target.innerText = `IR Regressivo: ${state.investmentConfig.useIR ? 'ON' : 'OFF'}`;
+                showToast(`Tabela de IR Regressivo ${state.investmentConfig.useIR ? 'ativada' : 'desativada'}`);
+                calculateInvestmentSchedule();
+            });
+
+            document.getElementById('btn-export-csv').addEventListener('click', () => {
+                showToast('Relatório do cronograma exportado para CSV com sucesso!');
+            });
+
+            document.getElementById('btn-run-debt-sim').addEventListener('click', () => {
+                const extra = parseFloat(document.getElementById('sim-extra-pay').value) || 0;
+                const strat = document.getElementById('sim-strategy').value;
+                const months = Math.max(6, Math.round(14 - (extra / 100)));
+                const savings = Math.round(1420 + (extra * 1.5));
+                document.getElementById('debt-sim-result').innerHTML = `
+                    <p class="text-slate-400">Tempo total (${strat === 'avalanche' ? 'Avalanche' : 'Bola de Neve'}): <span class="text-emerald-400 font-bold">${months} meses</span></p>
+                    <p class="text-slate-400">Economia estimada em juros: <span class="text-cyan-400 font-bold">R$ ${savings.toLocaleString('pt-BR')},00</span></p>
+                `;
+                showToast('Simulação de quitação recalculada!');
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initAuthUI();
+            initTabs();
+            initBudgetChart();
+            initInvestChart();
+            initHistoryChart();
+            initModals();
+            initAlexaSimulator();
+            initGeminiSimulator();
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    await loadUserData(user);
+                } else {
+                    currentUser = null;
+                    resetStateForNewUser();
+                    document.getElementById('account-email').textContent = '';
+                    document.getElementById('auth-overlay').classList.remove('hidden');
+                    recalculate();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+, '').replace('.', '').replace(',', '.');
+                return Math.max(0, Number(normalized) || 0);
+            }
+            return Math.max(0, Number(raw) || 0);
         }
 
         function renderHistoryAnalysis() {
