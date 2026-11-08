@@ -33,6 +33,8 @@ import android.graphics.Color;
 
 public final class MainActivity extends Activity {
     private static final String APP_URL = "https://mateusjk06.github.io/Fin-control-pro/";
+    // Version query forces GitHub Pages to serve the current interface after APK upgrades.
+    private static final String UI_VERSION = "20261108-mobile-2";
     private static final String HOST = "mateusjk06.github.io";
     private static final String PATH = "/Fin-control-pro/";
     private static final int AUDIO_REQUEST = 3001;
@@ -108,15 +110,18 @@ public final class MainActivity extends Activity {
             String cmd=data.getQueryParameter("fincontrol_cmd");
             Uri.Builder builder=Uri.parse(APP_URL).buildUpon().appendQueryParameter("assistente","1");
             if(cmd != null && cmd.length() <= 500)builder.appendQueryParameter("fincontrol_cmd",cmd);
-            return builder.build().toString();
+            return builder.appendQueryParameter("android_ui",UI_VERSION).build().toString();
         }
-        return APP_URL;
+        return Uri.parse(APP_URL).buildUpon().appendQueryParameter("android_ui",UI_VERSION).build().toString();
     }
 
     private void configureWebView() {
         WebSettings settings=webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
+        // Force a fresh HTML/CSS fetch, without clearing cookies or Firebase local session.
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        webView.clearCache(true);
         settings.setDatabaseEnabled(true);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
