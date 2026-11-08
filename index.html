@@ -1010,7 +1010,6 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         let cloudSaveTimer = null;
         let authMode = 'login';
 
-
         function syncDebtStrategyControls() {
             const extra = document.getElementById('sim-extra-pay');
             const method = document.getElementById('sim-strategy');
@@ -1019,38 +1018,21 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         function simulateDebtPayoff(extraMonthly, method) {
-            const debts = state.debts.map(d => ({
-                balance: Math.max(0, Number(d.balance) || 0),
-                rate: Math.max(0, Number(d.ratePct) || 0) / 100,
-                minimum: Math.max(0, Number(d.minPayment) || 0)
-            })).filter(d => d.balance > 0);
+            const debts = state.debts.map(d => ({ balance: Math.max(0, Number(d.balance) || 0), rate: Math.max(0, Number(d.ratePct) || 0) / 100, minimum: Math.max(0, Number(d.minPayment) || 0) })).filter(d => d.balance > 0);
             if (!debts.length) return { months: 0, interest: 0 };
-            const monthlyBudget = debts.reduce((sum, d) => sum + d.minimum, 0) + Math.max(0, Number(extraMonthly) || 0);
-            if (monthlyBudget <= 0) return { months: 600, interest: 0 };
-            let interestTotal = 0;
-            for (let month = 1; month <= 600; month++) {
-                debts.forEach(d => {
-                    const interest = d.balance * d.rate;
-                    d.balance += interest;
-                    interestTotal += interest;
-                });
-                let minimumsPaid = 0;
-                debts.forEach(d => {
-                    const payment = Math.min(d.balance, d.minimum);
-                    d.balance -= payment;
-                    minimumsPaid += payment;
-                });
-                let available = Math.max(0, monthlyBudget - minimumsPaid);
-                const priority = [...debts].sort((a,b) => method === 'snowball' ? a.balance - b.balance : b.rate - a.rate);
-                for (const d of priority) {
-                    if (available <= 0) break;
-                    const payment = Math.min(d.balance, available);
-                    d.balance -= payment;
-                    available -= payment;
-                }
-                if (debts.every(d => d.balance < 0.01)) return { months: month, interest: interestTotal };
+            const budget = debts.reduce((sum,d) => sum + d.minimum,0) + Math.max(0,Number(extraMonthly)||0);
+            if (budget <= 0) return { months: 600, interest: 0 };
+            let interestTotal=0;
+            for(let month=1;month<=600;month++){
+                debts.forEach(d=>{const interest=d.balance*d.rate;d.balance+=interest;interestTotal+=interest;});
+                let paid=0;
+                debts.forEach(d=>{const p=Math.min(d.balance,d.minimum);d.balance-=p;paid+=p;});
+                let extra=Math.max(0,budget-paid);
+                const order=[...debts].sort((a,b)=>method==='snowball'?a.balance-b.balance:b.rate-a.rate);
+                for(const d of order){if(extra<=0)break;const p=Math.min(d.balance,extra);d.balance-=p;extra-=p;}
+                if(debts.every(d=>d.balance<0.01))return {months:month,interest:interestTotal};
             }
-            return { months: 600, interest: interestTotal };
+            return {months:600,interest:interestTotal};
         }
 
         function getAppData() {
@@ -1918,28 +1900,47 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const strategyInput = document.getElementById('sim-strategy');
             syncDebtStrategyControls();
             const persistStrategy = () => {
-                state.debtStrategyConfig = {
-                    extraMonthly: Math.max(0, Number(extraInput.value) || 0),
-                    method: strategyInput.value === 'snowball' ? 'snowball' : 'avalanche'
-                };
+                state.debtStrategyConfig = { extraMonthly: Math.max(0, Number(extraInput.value) || 0), method: strategyInput.value === 'snowball' ? 'snowball' : 'avalanche' };
                 saveAppData();
             };
             extraInput.addEventListener('change', persistStrategy);
             strategyInput.addEventListener('change', persistStrategy);
             document.getElementById('btn-run-debt-sim').addEventListener('click', () => {
                 persistStrategy();
-                const extra = state.debtStrategyConfig.extraMonthly;
-                const strat = state.debtStrategyConfig.method;
-                const result = simulateDebtPayoff(extra, strat);
-                if (!result || result.months >= 600) {
-                    document.getElementById('debt-sim-result').innerHTML = '<p class="text-rose-400">Não foi possível quitar as dívidas com os pagamentos mínimos e o aporte informado. Confira os valores cadastrados.</p>';
+                const method = state.debtStrategyConfig.method;
+                const result = simulateDebtPayoff(state.debtStrategyConfig.extraMonthly, method);
+                if (result.months >= 600) {
+                    document.getElementById('debt-sim-result').innerHTML = '<p class="text-rose-400">Não foi possível quitar com os pagamentos mínimos e o aporte informado. Confira as dívidas.</p>';
                 } else {
-                    const baseline = simulateDebtPayoff(0, strat);
-                    const savedInterest = Math.max(0, (baseline ? baseline.interest : 0) - result.interest);
-                    document.getElementById('debt-sim-result').innerHTML =
-                        '<p class="text-slate-400">Tempo estimado (' + (strat === 'avalanche' ? 'Avalanche' : 'Bola de Neve') + '): <span class="text-emerald-400 font-bold">' + result.months + ' meses</span></p>' +
-                        '<p class="text-slate-400">Juros estimados no plano: <span class="text-cyan-400 font-bold">' + formatBRL(result.interest) + '</span></p>' +
-                        '<p class="text-slate-400">Economia estimada com o aporte extra: <span class="text-cyan-400 font-bold">' + formatBRL(savedInterest) + '</span></p>';
+                    const base = simulateDebtPayoff(0, method);
+                    const savedInterest = Math.max(0, (base ? base.interest : 0) - result.interest);
+                    document.getElementById('debt-sim-result').innerHTML = '<p class="text-slate-400">Tempo estimado (' + (method === 'avalanche' ? 'Avalanche' : 'Bola de Neve') + '): <span class="text-emerald-400 font-bold">' + result.months + ' meses</span></p><p class="text-slate-400">Juros estimados: <span class="text-cyan-400 font-bold">' + formatBRL(result.interest) + '</span></p><p class="text-slate-400">Economia estimada com aporte extra: <span class="text-cyan-400 font-bold">' + formatBRL(savedInterest) + '</span></p>';
                 }
                 showToast('Simulação calculada com suas dívidas cadastradas!');
             });
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initAuthUI();
+            initTabs();
+            initBudgetChart();
+            initInvestChart();
+            initHistoryChart();
+            initModals();
+            initAlexaSimulator();
+            initGeminiSimulator();
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    await loadUserData(user);
+                } else {
+                    currentUser = null;
+                    resetStateForNewUser();
+                    document.getElementById('account-email').textContent = '';
+                    document.getElementById('auth-overlay').classList.remove('hidden');
+                    recalculate();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
