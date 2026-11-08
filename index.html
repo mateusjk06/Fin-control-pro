@@ -1944,7 +1944,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const remove=document.createElement('button');remove.type='button';remove.className='rounded-lg border border-rose-500/40 px-2 py-1 text-rose-300';remove.textContent=incomeText('remove');
                 remove.addEventListener('click',()=>{
                     const question=incomeText('confirmRemove').replace('{desc}',String(entry.description||'')).replace('{amount}',formatBRL(entry.amount));
-                    if(!window.confirm(question))return;
+
                     state.monthlyExtraIncome[month]=(state.monthlyExtraIncome[month]||[]).filter(x=>String(x.id)!==String(entry.id));
                     cancelExtraIncomeEdit();recalculate();refreshIncomeManager();showToast(incomeText('removed'));
                 });
@@ -2836,7 +2836,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 .replace('{name}', String(debt.desc || ''))
                 .replace('{balance}', formatBRL(Number(debt.balance) || 0))
                 .replace('{plan}', linkedPlan ? debtDeleteText('plan') : '');
-            if (!window.confirm(message)) return;
+
             state.debts = state.debts.filter(item => String(item.id) !== String(debt.id));
             if (linkedPlan) state.aiPayoffPlan = null;
             if (editingDebtId !== null && String(editingDebtId) === String(debt.id)) {
@@ -2902,7 +2902,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const debt = state.debts.find(d => String(d.id) === String(debtId));
             const payment = debt?.schedule?.[paymentIndex];
             if (!payment?.paidAt || !payment.paid) return;
-            if (!window.confirm(debtPaymentWords().confirm)) return;
+
             payment.paid = false;
             delete payment.paidAt;
             delete payment.paidValue;
@@ -3087,7 +3087,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const question=investmentRecordLabel('confirmDelete')
                 .replace('{amount}',formatBRL(records[month]))
                 .replace('{month}',formatInvestmentMonth(month));
-            if(!window.confirm(question))return;
+
             const updated={...records};
             delete updated[month];
             state.monthlyInvestments=updated;
