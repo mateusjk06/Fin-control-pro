@@ -1093,14 +1093,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const picker = document.getElementById('language-select');
             if (picker) picker.addEventListener('change', () => applyLanguage(picker.value));
             applyLanguage(activeLanguage);
-            // Traduz somente elementos novos; não observa alterações de texto para evitar loop infinito.
-            const observer = new MutationObserver((mutations) => {
-                const added = mutations.some(mutation => mutation.addedNodes && mutation.addedNodes.length > 0);
-                if (added) {
-                    requestAnimationFrame(() => applyLanguage(activeLanguage));
-                }
-            });
-            observer.observe(document.body, {childList:true,subtree:true});
+            // A tradução inicial é aplicada uma vez; componentes dinâmicos preservam seu texto original.
         }
 
         const state = {
