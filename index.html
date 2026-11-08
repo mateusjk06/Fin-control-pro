@@ -1239,9 +1239,14 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         function billAmountForAnalysis(bill) {
-            const raw = bill.val !== undefined ? bill.val : (bill.amount !== undefined ? bill.amount : bill.value || 0);
+            const raw = bill.val !== undefined ? bill.val : (bill.amount !== undefined ? bill.amount : (bill.value || 0));
             if (typeof raw === 'string') {
-                const normalized = raw.trim().replace('R
+                const currencyPrefix = 'R' + String.fromCharCode(36);
+                const normalized = raw.trim().replace(currencyPrefix, '').replace(/\./g, '').replace(',', '.');
+                return Math.max(0, Number(normalized) || 0);
+            }
+            return Math.max(0, Number(raw) || 0);
+        }
 
         function renderHistoryAnalysis() {
             const table = document.getElementById('history-table');
