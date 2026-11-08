@@ -234,7 +234,7 @@
                       <option value="MXN">🇲🇽 MXN · Peso mexicano</option>
                       <option value="ARS">🇦🇷 ARS · Peso argentino</option>
                     </select>
-                    </div><div class="border-t border-slate-700 pt-3 space-y-2"><h4 class="text-sm font-semibold">Contato e lembretes</h4><label for="settings-phone" class="block text-xs">Celular com DDI</label><input id="settings-phone" type="tel" autocomplete="tel" placeholder="+5516999999999" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm"><label for="settings-whatsapp" class="block text-xs">WhatsApp com DDI</label><input id="settings-whatsapp" type="tel" autocomplete="tel" placeholder="+5516999999999" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm"><label class="flex items-center gap-2 text-xs"><input id="settings-reminders" type="checkbox" checked> Alertar sobre parcelas vencendo hoje</label><label class="flex items-start gap-2 text-xs"><input id="settings-whatsapp-optin" type="checkbox" class="mt-1"> Autorizo receber mensagens automáticas de lembrete pelo WhatsApp no número cadastrado. Posso cancelar a autorização a qualquer momento.</label><button id="settings-save" type="button" class="w-full rounded-lg bg-emerald-700 px-3 py-2 text-xs">Salvar contatos</button><label class="block text-xs text-slate-300" for="settings-vapid">Chave pública Web Push (VAPID) do Firebase</label><input id="settings-vapid" type="text" autocomplete="off" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs" placeholder="Cole aqui a chave pública VAPID"><button id="settings-notify" type="button" class="w-full rounded-lg border border-sky-700 px-3 py-2 text-xs text-sky-300">Ativar notificações gratuitas no celular</button><button id="settings-push-disable" type="button" class="w-full rounded-lg border border-rose-700 px-3 py-2 text-xs text-rose-300">Desativar notificações neste aparelho</button><button id="settings-whatsapp-open" type="button" class="w-full rounded-lg border border-green-700 px-3 py-2 text-xs text-green-300">Abrir lembrete no WhatsApp</button><p id="settings-reminder-status" aria-live="polite" class="text-[11px] text-amber-300">Alertas do navegador funcionam com o app aberto. Envio no WhatsApp é manual; automação exige integração de serviço.</p></div><div class="border-t border-slate-700 pt-3"><p id="account-email" class="mb-2 break-all text-xs text-slate-400"></p>
+                    </div><div class="border-t border-slate-700 pt-3 space-y-2"><h4 class="text-sm font-semibold">Contato e lembretes</h4><label for="settings-phone" class="block text-xs">Celular com DDI</label><input id="settings-phone" type="tel" autocomplete="tel" placeholder="+5516999999999" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm"><label for="settings-whatsapp" class="block text-xs">WhatsApp com DDI</label><input id="settings-whatsapp" type="tel" autocomplete="tel" placeholder="+5516999999999" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm"><label class="flex items-center gap-2 text-xs"><input id="settings-reminders" type="checkbox" checked> Alertar sobre parcelas vencendo hoje</label><label class="flex items-start gap-2 text-xs"><input id="settings-whatsapp-optin" type="checkbox" class="mt-1"> Autorizo receber mensagens automáticas de lembrete pelo WhatsApp no número cadastrado. Posso cancelar a autorização a qualquer momento.</label><button id="settings-save" type="button" class="w-full rounded-lg bg-emerald-700 px-3 py-2 text-xs">Salvar contatos</button><div class="rounded-lg border border-sky-800/70 bg-sky-950/40 p-3 space-y-1"><p class="text-sm font-semibold text-sky-200">🔔 Lembretes gratuitos no celular</p><p class="text-xs text-slate-300">Ative os avisos de contas e dívidas no seu aparelho. Basta permitir notificações quando o navegador perguntar.</p></div><div id="settings-vapid-setup"><label class="block text-xs text-slate-300" for="settings-vapid">Configuração inicial do administrador: chave pública Web Push (VAPID)</label><input id="settings-vapid" type="text" autocomplete="off" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs" placeholder="Chave pública VAPID do Firebase"></div><button id="settings-notify" type="button" class="w-full rounded-lg border border-sky-700 px-3 py-2 text-xs text-sky-300">Ativar notificações gratuitas no celular</button><button id="settings-push-disable" type="button" class="w-full rounded-lg border border-rose-700 px-3 py-2 text-xs text-rose-300">Desativar notificações neste aparelho</button><button id="settings-whatsapp-open" type="button" class="w-full rounded-lg border border-green-700 px-3 py-2 text-xs text-green-300">Abrir lembrete no WhatsApp</button><p id="settings-reminder-status" aria-live="polite" class="text-[11px] text-amber-300">Alertas do navegador funcionam com o app aberto. Envio no WhatsApp é manual; automação exige integração de serviço.</p></div><div class="border-t border-slate-700 pt-3"><p id="account-email" class="mb-2 break-all text-xs text-slate-400"></p>
                     <button id="btn-logout" type="button" class="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:border-rose-500 hover:text-rose-300">
                         <i class="fa-solid fa-right-from-bracket mr-1"></i>Sair
                     </button></div></div>
@@ -1666,13 +1666,30 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
 
 
+        // Public Firebase Web Push key: safe to ship to browsers; never place the service-account JSON here.
+        // Fill this single value once to enable notifications without manual per-device setup.
+        const FINCONTROL_PUBLIC_VAPID_KEY = '';
+        function fincontrolVapid() {
+            const configured=FINCONTROL_PUBLIC_VAPID_KEY.trim();
+            if(/^[A-Za-z0-9_-]{60,200}$/.test(configured))return configured;
+            const field=document.getElementById('settings-vapid');
+            return (field?.value||localStorage.getItem('fincontrol-public-vapid')||'').trim();
+        }
+        function refreshPushSetup() {
+            const configured=/^[A-Za-z0-9_-]{60,200}$/.test(FINCONTROL_PUBLIC_VAPID_KEY.trim());
+            const legacy=document.getElementById('settings-vapid-setup');
+            if(legacy)legacy.classList.toggle('hidden',configured);
+            const btn=document.getElementById('settings-notify');
+            if(btn)btn.textContent='🔔 Ativar lembretes neste aparelho';
+        }
+
         async function enableFincontrolPush() {
             if(!currentUser) return showToast('Entre na sua conta antes de ativar notificações.');
             if(!window.isSecureContext || !('serviceWorker' in navigator) || !('Notification' in window)) {
                 return showToast('Este navegador não permite push. Abra o site por HTTPS; no iPhone, adicione à Tela de Início.');
             }
-            const vapid=document.getElementById('settings-vapid').value.trim();
-            if(!/^[A-Za-z0-9_-]{60,200}$/.test(vapid))return showToast('Informe a chave pública VAPID gerada no Firebase.');
+            const vapid=fincontrolVapid();
+            if(!/^[A-Za-z0-9_-]{60,200}$/.test(vapid))return showToast('O administrador precisa configurar a chave pública de notificações do FinControl Pro.');
             const button=document.getElementById('settings-notify');
             button.disabled=true;
             try {
@@ -1710,7 +1727,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         async function disableFincontrolPush() {
             if(!currentUser)return showToast('Entre na sua conta.');
             try{
-                const vapid=localStorage.getItem('fincontrol-public-vapid')||'';
+                const vapid=fincontrolVapid();
                 let token='';
                 if(firebase.messaging.isSupported() && vapid){
                     const sw=await navigator.serviceWorker.getRegistration('./');
@@ -1740,7 +1757,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             document.getElementById('settings-whatsapp').value = p.whatsapp || '';
             document.getElementById('settings-reminders').checked = p.reminders !== false;
             document.getElementById('settings-whatsapp-optin').checked = p.whatsappOptIn === true;
-            document.getElementById('settings-vapid').value = localStorage.getItem('fincontrol-public-vapid') || '';
+            document.getElementById('settings-vapid').value = fincontrolVapid();
+            refreshPushSetup();
         }
         function debtDueToday() {
             const now = new Date();
