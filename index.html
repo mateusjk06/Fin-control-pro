@@ -1668,7 +1668,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
         // Public Firebase Web Push key: safe to ship to browsers; never place the service-account JSON here.
         // Fill this single value once to enable notifications without manual per-device setup.
-        const FINCONTROL_PUBLIC_VAPID_KEY = '';
+        const FINCONTROL_PUBLIC_VAPID_KEY = 'BN0ocS5AclvYK-Rs7aIHXmmhfPFdjlyzhf1zBFxOSMJDNjyOoVG34RDNq_52dhqtfegbdpvgAKMxr6AEu93z0vI';
         function fincontrolVapid() {
             const configured=FINCONTROL_PUBLIC_VAPID_KEY.trim();
             if(/^[A-Za-z0-9_-]{60,200}$/.test(configured))return configured;
