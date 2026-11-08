@@ -2349,6 +2349,21 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     addMessage('ai','Não foi possível consultar o Gemini: ' + (error?.message || 'erro desconhecido') + '. Nenhum dado foi alterado.');
                 } finally { busy = false; btnSend.disabled = false; }
             }
+            // Atalhos de planejamento: o Gemini apenas propõe; validateAction e
+            // window.confirm continuam obrigatórios antes de qualquer gravação.
+            const actionBar = document.createElement('div');
+            actionBar.className = 'mt-3 flex flex-wrap gap-2';
+            const addGeminiShortcut = (label, prompt) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'bg-slate-800 hover:bg-purple-900 text-purple-200 border border-purple-700 rounded-lg px-3 py-2 text-xs font-semibold';
+                button.textContent = label;
+                button.addEventListener('click', () => handleSend(prompt));
+                actionBar.appendChild(button);
+            };
+            addGeminiShortcut('Propor ajuste das metas', 'Analise minha renda, contas, dívidas, investimentos realizados e metas atuais. Proponha UMA ação save_payoff_plan com valores mensais realistas de investimento e amortização, dívida existente e prazo de até 60 meses. Considere despesas variáveis não cadastradas como incerteza. Explique os motivos. Não registre aportes ou pagamentos; peça confirmação para salvar apenas o planejamento.');
+            addGeminiShortcut('Revisar meu cronograma', 'Revise meu cronograma de investimentos e meu plano de quitação com base nos valores efetivamente registrados. Identifique diferenças entre planejado e realizado, riscos e até três melhorias práticas. Não altere dados nesta consulta.');
+            btnSend.parentElement.insertAdjacentElement('afterend', actionBar);
             btnSend.addEventListener('click', () => handleSend());
             userInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } });
             document.querySelectorAll('.btn-gemini-prompt').forEach(btn => btn.addEventListener('click', () => handleSend(btn.innerText)));
