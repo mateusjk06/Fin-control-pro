@@ -19,6 +19,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
@@ -37,7 +39,7 @@ import android.graphics.Color;
 public final class MainActivity extends Activity {
     private static final String APP_URL = "https://mateusjk06.github.io/Fin-control-pro/";
     // Version query forces GitHub Pages to serve the current interface after APK upgrades.
-    private static final String UI_VERSION = "20261108-mobile-notify-1";
+    private static final String UI_VERSION = "20261108-mobile-insets-1";
     private static final String HOST = "mateusjk06.github.io";
     private static final String PATH = "/Fin-control-pro/";
     private static final int AUDIO_REQUEST = 3001;
@@ -63,11 +65,25 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         getWindow().setStatusBarColor(Color.rgb(15,23,42));
         getWindow().setNavigationBarColor(Color.rgb(15,23,42));
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        // Ensure the status bar clock and icons use white contrast.
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+        getWindow().getDecorView().setSystemUiVisibility(0);
+        if(Build.VERSION.SDK_INT >= 29) getWindow().setNavigationBarContrastEnforced(false);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(15,23,42));
+        root.setBackgroundColor(Color.rgb(8,15,28));
+        if(Build.VERSION.SDK_INT >= 35) {
+            // Android 15: keep the app below the time, battery and signal indicators.
+            root.setOnApplyWindowInsetsListener((view, insets) -> {
+                android.graphics.Insets bars = insets.getInsets(
+                    WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars()
+                    | WindowInsets.Type.displayCutout());
+                view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                return WindowInsets.CONSUMED;
+            });
+        }
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setIndeterminate(true);
         root.addView(progress, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 3));
@@ -76,7 +92,8 @@ public final class MainActivity extends Activity {
         voiceButton.setText("🎙 Falar com assistente");
         voiceButton.setAllCaps(false);
         voiceButton.setOnClickListener(v -> startVoiceInput());
-        root.addView(voiceButton, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 48));
+        // The Gemini chat microphone opens native speech recognition.
+        // Keep the duplicate toolbar button hidden to maximize usable space.
 
         FrameLayout frame = new FrameLayout(this);
         root.addView(frame, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
@@ -133,7 +150,7 @@ public final class MainActivity extends Activity {
     private void configureWebView() {
         WebSettings settings=webView.getSettings();
         settings.setJavaScriptEnabled(true);
-        settings.setUserAgentString(settings.getUserAgentString() + " FinControlProAndroid/1.4");
+        settings.setUserAgentString(settings.getUserAgentString() + " FinControlProAndroid/1.5");
         settings.setDomStorageEnabled(true);
         // Force a fresh HTML/CSS fetch, without clearing cookies or Firebase local session.
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
@@ -289,8 +306,7 @@ public final class MainActivity extends Activity {
             intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
             intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"pt-BR");
             intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,false);
-            voiceButton.setEnabled(false);
-            voiceButton.setText("🎙 Preparando microfone...");
+            if(voiceButton!=null){voiceButton.setEnabled(false);voiceButton.setText("🎙 Preparando microfone...");}
             speechRecognizer.startListening(intent);
         }catch(Exception error){
             stopNativeRecognition();
