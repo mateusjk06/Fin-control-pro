@@ -1591,13 +1591,16 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     : billList.reduce((sum, bill) => sum + (billOccursInMonth(bill, dt) ? billAmountForAnalysis(bill) : 0), 0);
                 let debtPay = 0;
                 state.debts.forEach(debt => {
-                    const first = debt.startDate || (start.getFullYear() + '-' + String(start.getMonth() + 1).padStart(2, '0') + '-01');
-                    const firstDate = new Date(first + 'T12:00:00');
-                    const dueIndex = (dt.getFullYear() - firstDate.getFullYear()) * 12 + dt.getMonth() - firstDate.getMonth();
-                    const paid = Number(debt.paidCount) || 0;
-                    const count = Number(debt.installmentCount) || 0;
-                    if (count > 0 && dueIndex >= paid && dueIndex < count) debtPay += installmentForDebt(debt, dueIndex);
-                    else if (!count && dueIndex === 0) debtPay += Number(debt.minPayment) || 0;
+                    // Dívida ativa: a parcela mínima mensal deve entrar no orçamento,
+                    // mesmo quando a data inicial é antiga ou o cadastro não tem cronograma.
+                    const balance = Math.max(0, Number(debt.balance) || 0);
+                    const paid = Math.max(0, Number(debt.paidCount) || 0);
+                    const count = Math.max(0, Number(debt.installmentCount) || 0);
+                    const remaining = count > 0 ? Math.max(0, count - paid) : Infinity;
+                    if (balance <= 0 || i >= remaining) return;
+                    const scheduled = Math.max(0, Number(installmentForDebt(debt, paid + i)) || 0);
+                    const minimum = Math.max(0, Number(debt.minPayment) || 0);
+                    debtPay += minimum || scheduled;
                 });
 
                 const hasActualInvestment = Object.prototype.hasOwnProperty.call(state.monthlyInvestments || {}, monthKey);
