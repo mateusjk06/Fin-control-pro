@@ -184,7 +184,7 @@ public final class MainActivity extends Activity {
         if(transcript.length()>500)transcript=transcript.substring(0,500);
         Uri page=Uri.parse(webView.getUrl()==null?"":webView.getUrl());
         if(!trusted(page))return;
-        String js="(function(){const tab=document.querySelector('[data-tab=\\\"gemini\\\"]');if(tab)tab.click();"+
+        String js="(function(){const tab=document.querySelector('[data-tab=gemini]');if(tab)tab.click();"+
                 "const field=document.getElementById('gemini-user-input');"+
                 "if(field){field.value="+JSONObject.quote(transcript)+";field.dispatchEvent(new Event('input',{bubbles:true}));field.focus();}})();";
         webView.evaluateJavascript(js,null); // Apenas rascunho; o usuário decide quando enviar.
