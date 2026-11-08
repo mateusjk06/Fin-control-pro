@@ -234,7 +234,7 @@
                       <option value="MXN">🇲🇽 MXN · Peso mexicano</option>
                       <option value="ARS">🇦🇷 ARS · Peso argentino</option>
                     </select>
-                    </div><div class="border-t border-slate-700 pt-3 space-y-2"><h4 class="text-sm font-semibold">Contato e lembretes</h4><label for="settings-phone" class="block text-xs">Celular com DDI</label><input id="settings-phone" type="tel" autocomplete="tel" placeholder="+5516999999999" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm"><label for="settings-whatsapp" class="block text-xs">WhatsApp com DDI</label><input id="settings-whatsapp" type="tel" autocomplete="tel" placeholder="+5516999999999" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm"><label class="flex items-center gap-2 text-xs"><input id="settings-reminders" type="checkbox" checked> Alertar sobre parcelas vencendo hoje</label><label class="flex items-start gap-2 text-xs"><input id="settings-whatsapp-optin" type="checkbox" class="mt-1"> Autorizo receber mensagens automáticas de lembrete pelo WhatsApp no número cadastrado. Posso cancelar a autorização a qualquer momento.</label><button id="settings-save" type="button" class="w-full rounded-lg bg-emerald-700 px-3 py-2 text-xs">Salvar contatos</button><div class="rounded-lg border border-sky-800/70 bg-sky-950/40 p-3 space-y-1"><p class="text-sm font-semibold text-sky-200">🔔 Lembretes gratuitos no celular</p><p class="text-xs text-slate-300">Ative os avisos de contas e dívidas no seu aparelho. Basta permitir notificações quando o navegador perguntar.</p></div><div id="settings-vapid-setup"><label class="block text-xs text-slate-300" for="settings-vapid">Configuração inicial do administrador: chave pública Web Push (VAPID)</label><input id="settings-vapid" type="text" autocomplete="off" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs" placeholder="Chave pública VAPID do Firebase"></div><button id="settings-notify" type="button" class="w-full rounded-lg border border-sky-700 px-3 py-2 text-xs text-sky-300">Ativar notificações gratuitas no celular</button><button id="settings-push-disable" type="button" class="w-full rounded-lg border border-rose-700 px-3 py-2 text-xs text-rose-300">Desativar notificações neste aparelho</button><button id="settings-whatsapp-open" type="button" class="w-full rounded-lg border border-green-700 px-3 py-2 text-xs text-green-300">Abrir lembrete no WhatsApp</button><p id="settings-reminder-status" aria-live="polite" class="text-[11px] text-amber-300">Alertas do navegador funcionam com o app aberto. Envio no WhatsApp é manual; automação exige integração de serviço.</p></div><div class="border-t border-slate-700 pt-3"><p id="account-email" class="mb-2 break-all text-xs text-slate-400"></p>
+                    </div><div class="border-t border-slate-700 pt-3 space-y-2"><h4 class="text-sm font-semibold">Lembretes e notificações</h4><div class="rounded-lg border border-sky-800/70 bg-sky-950/40 p-3 space-y-1"><p class="text-sm font-semibold text-sky-200">🔔 Lembretes gratuitos no celular</p><p class="text-xs text-slate-300">Ative os avisos de contas e dívidas no seu aparelho. Basta permitir notificações quando o navegador perguntar.</p></div><div id="settings-vapid-setup"><label class="block text-xs text-slate-300" for="settings-vapid">Configuração inicial do administrador: chave pública Web Push (VAPID)</label><input id="settings-vapid" type="text" autocomplete="off" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs" placeholder="Chave pública VAPID do Firebase"></div><button id="settings-notify" type="button" class="w-full rounded-lg border border-sky-700 px-3 py-2 text-xs text-sky-300">Ativar notificações gratuitas no celular</button><button id="settings-push-disable" type="button" class="w-full rounded-lg border border-rose-700 px-3 py-2 text-xs text-rose-300">Desativar notificações neste aparelho</button><p id="settings-reminder-status" aria-live="polite" class="text-[11px] text-amber-300">Ative as notificações push para receber lembretes gratuitos de vencimentos neste aparelho.</p></div><div class="border-t border-slate-700 pt-3"><p id="account-email" class="mb-2 break-all text-xs text-slate-400"></p>
                     <button id="btn-logout" type="button" class="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:border-rose-500 hover:text-rose-300">
                         <i class="fa-solid fa-right-from-bracket mr-1"></i>Sair
                     </button></div></div>
@@ -1750,14 +1750,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         function refreshSettingsContacts() {
-            const p = state.contactPreferences || {};
-            const phone = document.getElementById('settings-phone');
-            if (!phone) return;
-            phone.value = p.phone || '';
-            document.getElementById('settings-whatsapp').value = p.whatsapp || '';
-            document.getElementById('settings-reminders').checked = p.reminders !== false;
-            document.getElementById('settings-whatsapp-optin').checked = p.whatsappOptIn === true;
-            document.getElementById('settings-vapid').value = fincontrolVapid();
+            const field=document.getElementById('settings-vapid');
+            if(field)field.value=fincontrolVapid();
             refreshPushSetup();
         }
         function debtDueToday() {
@@ -1783,7 +1777,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             if (!currentUser || state.contactPreferences?.reminders === false) return;
             const {today,matches} = debtDueToday();
             const status = document.getElementById('settings-reminder-status');
-            if (status) status.textContent = matches.length ? matches.length+' parcela(s) vencem hoje. Abra o lembrete no WhatsApp para enviar manualmente.' : 'Nenhuma parcela vence hoje. Notificações do navegador exigem o aplicativo aberto; WhatsApp requer envio manual.';
+            if (status) status.textContent = matches.length ? matches.length+' parcela(s) vencem hoje. Os avisos push estão disponíveis para dispositivos cadastrados.' : 'Nenhuma parcela vence hoje. Ative as notificações para receber avisos dos próximos vencimentos.';
             if (!matches.length) return;
             const storageKey = 'fincontrol-reminder:'+currentUser.uid+':'+today;
             let sent=[];try {sent=JSON.parse(localStorage.getItem(storageKey)||'[]');}catch(e){}
@@ -1804,30 +1798,11 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             });
             document.addEventListener('click',e=>{if(!document.getElementById('account-controls').contains(e.target))close();});
             document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
-            document.getElementById('settings-save').addEventListener('click',()=>{
-                if(!currentUser)return showToast('Entre na conta para salvar.');
-                const phone=document.getElementById('settings-phone').value.trim().replace(/[\s()-]/g,'');
-                const whatsapp=document.getElementById('settings-whatsapp').value.trim().replace(/[\s()-]/g,'');
-                const valid=v=>!v||/^\+[1-9]\d{7,14}$/.test(v);
-                if(!valid(phone)||!valid(whatsapp))return showToast('Informe o telefone com DDI: +5516999999999.');
-                const whatsappOptIn=document.getElementById('settings-whatsapp-optin').checked;
-                if (whatsappOptIn && !whatsapp) return showToast('Cadastre seu WhatsApp antes de autorizar lembretes automáticos.');
-                state.contactPreferences={...state.contactPreferences,phone,whatsapp,reminders:document.getElementById('settings-reminders').checked,whatsappOptIn};
-                saveAppData();showToast('Contatos salvos.');checkDebtDueToday();
-            });
             document.getElementById('settings-notify').addEventListener('click',async()=>{
                 await enableFincontrolPush();
             });
             document.getElementById('settings-push-disable').addEventListener('click',async()=>{
                 await disableFincontrolPush();
-            });
-            document.getElementById('settings-whatsapp-open').addEventListener('click',()=>{
-                if(!currentUser)return showToast('Entre na conta primeiro.');
-                const number=String(state.contactPreferences?.whatsapp||'').replace(/\D/g,'');
-                if(!/^\d{8,15}$/.test(number))return showToast('Cadastre e salve seu WhatsApp com DDI.');
-                const items=debtDueToday().matches;
-                if(!items.length)return showToast('Não há dívidas vencendo hoje.');
-                window.open('https://wa.me/'+number+'?text='+encodeURIComponent(dueTodayMessage(items)),'_blank','noopener,noreferrer');
             });
             document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkDebtDueToday();});
             setInterval(()=>{if(!document.hidden)checkDebtDueToday();},60000);
@@ -1856,7 +1831,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             if (!saved || typeof saved !== 'object') return;
             state.currency = CURRENCIES.includes(saved.currency) ? saved.currency : 'BRL';
             state.pushTokens = Array.isArray(saved.pushTokens) ? saved.pushTokens : [];
-            state.contactPreferences = saved.contactPreferences && typeof saved.contactPreferences === 'object' ? {phone:String(saved.contactPreferences.phone || ''), whatsapp:String(saved.contactPreferences.whatsapp || ''), reminders:saved.contactPreferences.reminders !== false, whatsappOptIn:saved.contactPreferences.whatsappOptIn === true} : {phone:'',whatsapp:'',reminders:true};
+            state.contactPreferences = saved.contactPreferences && typeof saved.contactPreferences === 'object' ? {reminders:saved.contactPreferences.reminders !== false,pushOptIn:saved.contactPreferences.pushOptIn===true} : {reminders:true,pushOptIn:false};
             if (Number.isFinite(saved.income)) state.income = saved.income;
             state.monthlyIncomeOverrides = saved.monthlyIncomeOverrides && typeof saved.monthlyIncomeOverrides === 'object' && !Array.isArray(saved.monthlyIncomeOverrides) ? saved.monthlyIncomeOverrides : {};
             state.monthlyExtraIncome = saved.monthlyExtraIncome && typeof saved.monthlyExtraIncome === 'object' && !Array.isArray(saved.monthlyExtraIncome) ? saved.monthlyExtraIncome : {};
@@ -1878,7 +1853,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         function resetStateForNewUser() {
             state.currency = 'BRL';
             state.pushTokens = [];
-            state.contactPreferences = {phone:'',whatsapp:'',reminders:true,whatsappOptIn:false};
+            state.contactPreferences = {reminders:true,pushOptIn:false};
             state.income = 0;
             state.monthlyIncomeOverrides = {};
             state.monthlyExtraIncome = {};
