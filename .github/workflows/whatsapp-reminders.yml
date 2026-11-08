@@ -1,0 +1,46 @@
+name: WhatsApp - lembretes de vencimento
+
+on:
+  schedule:
+    - cron: '17 9 * * *'
+      timezone: 'America/Sao_Paulo'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Testar sem enviar mensagens'
+        type: boolean
+        default: true
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fincontrol-whatsapp-reminders
+  cancel-in-progress: false
+
+jobs:
+  reminders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'functions/package-lock.json'
+      - name: Install dependencies
+        working-directory: functions
+        run: npm ci --omit=dev
+      - name: Process reminders
+        working-directory: functions
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
+          WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+          META_GRAPH_VERSION: ${{ vars.META_GRAPH_VERSION || 'v23.0' }}
+          WHATSAPP_TEMPLATE_NAME: fincontrol_vencimento_hoje
+          WHATSAPP_TEMPLATE_LANGUAGE: pt_BR
+          REMINDERS_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+        run: node reminders-github.js
