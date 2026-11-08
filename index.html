@@ -1428,6 +1428,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 }
                 localStorage.setItem(userStorageKey(user.uid), JSON.stringify(getAppData()));
                 recalculate();
+                window.fincontrolRefreshGeminiOverview?.();
                 // Executa após os dados da conta estarem disponíveis, sem bloquear o login.
                 window.fincontrolRunAutoGeminiAnalysis?.();
                 const cloudStatus = document.getElementById('cloud-status');
@@ -2385,15 +2386,89 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 localStorage.setItem(autoPrefKey, autoCheckbox.checked ? 'on' : 'off');
                 if (autoCheckbox.checked && currentUser) window.fincontrolRunAutoGeminiAnalysis?.();
             });
+            // Painel calculado diretamente dos registros, sem depender de interpretações da IA.
+            const overview = document.createElement('section');
+            overview.className = 'rounded-xl border border-slate-700 bg-slate-900/80 p-4 my-3 text-sm text-slate-200';
+            overview.setAttribute('aria-label', 'Resumo financeiro e cumprimento das metas');
+            autoControls.insertAdjacentElement('afterend', overview);
+            const money = n => Number(n || 0).toLocaleString('pt-BR', {style:'currency',currency:'BRL'});
+            const safeNumber = n => Math.max(0, Number(n) || 0);
+            const renderGeminiOverview = () => {
+                if (!currentUser) { overview.replaceChildren(); return; }
+                const data = snapshot();
+                const now = new Date();
+                const month = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+                const plan = data.aiPayoffPlan || {};
+                const income = safeNumber(data.income);
+                const bills = data.bills.reduce((sum,b) => sum + safeNumber(b.val), 0);
+                const debtMinimum = data.debts.reduce((sum,d) => sum + safeNumber(d.minPayment), 0);
+                const totalDebt = data.debts.reduce((sum,d) => sum + safeNumber(d.balance), 0);
+                const investmentGoal = safeNumber(plan.monthlyInvestment ?? data.investmentConfig.monthly);
+                const extraGoal = safeNumber(plan.monthlyExtraPayment);
+                const actualInvest = safeNumber(data.monthlyInvestments[month]);
+                const actualExtra = safeNumber(state.monthlyAmortizations?.[month]);
+                const percent = (actual,goal) => goal > 0 ? Math.min(100,actual/goal*100) : 0;
+                const section = (heading, lines) => {
+                    const block = document.createElement('div');
+                    block.className = 'rounded-lg border border-slate-700 p-3';
+                    const title = document.createElement('h4');
+                    title.className = 'font-bold text-purple-300 mb-2';
+                    title.textContent = heading;
+                    block.append(title);
+                    lines.forEach(line => {
+                        const p = document.createElement('p');
+                        p.className = 'mb-1';
+                        p.textContent = line;
+                        block.append(p);
+                    });
+                    return block;
+                };
+                const goalBlock = (name, actual, goal) => {
+                    const block = document.createElement('div');
+                    block.className = 'mb-3';
+                    const label = document.createElement('p');
+                    label.className = 'mb-1';
+                    label.textContent = name + ': ' + money(actual) + ' realizados de ' + money(goal) + ' planejados (' + (goal ? (actual/goal*100).toFixed(1) + '%' : 'sem meta') + ')';
+                    const track = document.createElement('div');
+                    track.className = 'h-2 rounded-full bg-slate-700 overflow-hidden';
+                    const bar = document.createElement('div');
+                    bar.className = 'h-full bg-purple-500';
+                    bar.style.width = percent(actual,goal) + '%';
+                    track.append(bar);
+                    block.append(label,track);
+                    return block;
+                };
+                const heading = document.createElement('h3');
+                heading.className = 'text-base font-bold text-white mb-3';
+                heading.textContent = 'Resumo financeiro e metas — ' + now.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+                const grid = document.createElement('div');
+                grid.className = 'grid grid-cols-1 md:grid-cols-2 gap-3 mb-4';
+                grid.append(
+                    section('Receitas', ['Renda mensal cadastrada: ' + money(income)]),
+                    section('Despesas', ['Contas cadastradas: ' + money(bills), 'Parcelas mínimas das dívidas: ' + money(debtMinimum), 'Despesas variáveis não cadastradas não estão incluídas.']),
+                    section('Dívidas', ['Saldo devedor cadastrado: ' + money(totalDebt), 'Dívidas ativas: ' + data.debts.length]),
+                    section('Investimentos', ['Aporte planejado por mês: ' + money(investmentGoal), 'Aporte registrado neste mês: ' + money(actualInvest)])
+                );
+                const goalsTitle = document.createElement('h4');
+                goalsTitle.className = 'font-bold text-white mb-2';
+                goalsTitle.textContent = 'Cumprimento das metas mensais';
+                const note = document.createElement('p');
+                note.className = 'text-xs text-slate-400';
+                note.textContent = 'Os percentuais usam somente registros deste mês. Planejamento não significa pagamento realizado. A amortização registrada não confirma baixa bancária.';
+                overview.replaceChildren(heading,grid,goalsTitle,goalBlock('Investimentos',actualInvest,investmentGoal),goalBlock('Amortização extra',actualExtra,extraGoal),note);
+            };
+            window.fincontrolRefreshGeminiOverview = renderGeminiOverview;
+            renderGeminiOverview();
             window.fincontrolRunAutoGeminiAnalysis = async () => {
                 if (!currentUser || !autoCheckbox.checked || busy || lastAutomaticUid === currentUser.uid) return;
                 const uid = currentUser.uid;
+                renderGeminiOverview();
                 lastAutomaticUid = uid;
                 const status = addMessage('ai', 'Diagnóstico automático: analisando seus dados (sem alterar registros)...');
                 try {
                     const model = await getModel();
                     if (!currentUser || currentUser.uid !== uid) { status.remove(); return; }
-                    const prompt = 'Faça um diagnóstico financeiro breve e objetivo em português brasileiro com base EXCLUSIVAMENTE nos dados JSON seguintes. Informe renda, contas, dívidas, metas de investimento e amortização, diferenças entre realizado e planejado, riscos e até três sugestões. Não assuma despesas variáveis ausentes como zero real. Não recomende com certeza investimentos sem avaliar riscos e taxas. Responda somente com texto, nunca JSON de ação. Não altere nenhum dado. Dados: ' + JSON.stringify(snapshot());
+                    const prompt = 'Organize sua resposta em cinco seções com títulos claros: Receitas, Despesas, Dívidas, Investimentos e Recomendações. Faça um diagnóstico financeiro breve e objetivo em português brasileiro com base EXCLUSIVAMENTE nos dados JSON seguintes. Informe renda, contas, dívidas, metas de investimento e amortização, diferenças entre realizado e planejado, riscos e até três sugestões. Não assuma despesas variáveis ausentes como zero real. Não recomende com certeza investimentos sem avaliar riscos e taxas. Responda somente com texto, nunca JSON de ação. Não altere nenhum dado. Dados: ' + JSON.stringify(snapshot());
                     const result = await model.generateContent(prompt);
                     if (!currentUser || currentUser.uid !== uid) { status.remove(); return; }
                     status.remove();
