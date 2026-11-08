@@ -992,6 +992,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
           <label class="text-slate-400">Valor da parcela (R$)<input id="debt-installment" type="number" min="0.01" step="0.01" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white" placeholder="Calcular automaticamente"></label>
           <label class="text-slate-400">Juros ao mês (%)<input id="debt-rate" type="number" min="0" step="0.01" value="0" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
           <label class="text-slate-400">Primeiro vencimento<input id="debt-start" type="date" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
+          <label class="text-slate-400">Próximo vencimento (parcela ainda não paga)<input id="debt-next-due" type="date" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
           <label class="text-slate-400">Parcelas já pagas<input id="debt-paid" type="number" min="0" step="1" value="0" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
         </div>
         <p id="debt-modal-help" class="text-[11px] text-slate-400">Se informar o valor da parcela, ele será usado no cronograma. Se deixar vazio, o sistema calcula uma parcela estimada com juros mensais.</p>
@@ -2391,7 +2392,9 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                         : []);
                 schedule.forEach((payment, index) => {
                     if (payment.paid || index < paidCount) return;
-                    const date = parseDay(payment.date);
+                    const date = parseDay(debt.nextDueDate
+                        ? addMonths(debt.nextDueDate, index - paidCount)
+                        : payment.date);
                     if (!isUpcoming(date)) return;
                     items.push({
                         type: 'debt', name: String(debt.desc || labels.debt),
@@ -2587,6 +2590,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             document.getElementById('debt-installment').value = debt.installment || debt.minPayment || '';
             document.getElementById('debt-rate').value = debt.ratePct || 0;
             document.getElementById('debt-start').value = debt.startDate || new Date().toLocaleDateString('en-CA');
+            const unpaidPayment = Array.isArray(debt.schedule)
+                ? debt.schedule.find((p, i) => !p.paid && i >= Number(debt.paidCount || 0))
+                : null;
+            document.getElementById('debt-next-due').value = debt.nextDueDate || unpaidPayment?.date || '';
             document.getElementById('debt-paid').value = debt.paidCount || 0;
             refreshDebtModalLocale();
             const modal = document.getElementById('modal-debt');
@@ -2707,6 +2714,16 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                         </div>
                     </div>
                 `;
+                const pendingDebtPayment = Array.isArray(d.schedule)
+                    ? d.schedule.find((payment, index) => !payment.paid && index >= (Number(d.paidCount) || 0))
+                    : null;
+                const nextDate = d.nextDueDate || pendingDebtPayment?.date || '';
+                if (/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
+                    const dueLabel = document.createElement('p');
+                    dueLabel.className = 'text-[11px] text-amber-300 mt-1';
+                    dueLabel.textContent = 'Próximo vencimento cadastrado: ' + nextDate.split('-').reverse().join('/');
+                    card.firstElementChild.appendChild(dueLabel);
+                }
                 card.querySelector('.debt-edit-action').addEventListener('click', () => editDebt(d.id));
                 card.querySelector('.debt-delete-action').addEventListener('click', () => deleteDebt(d.id));
                 container.appendChild(card);
@@ -3362,6 +3379,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 document.getElementById('debt-rate').value = '0';
                 document.getElementById('debt-paid').value = '0';
                 document.getElementById('debt-start').value = new Date().toLocaleDateString('en-CA');
+                document.getElementById('debt-next-due').value = '';
                 refreshDebtModalLocale();
                 modalDebt.classList.remove('hidden');
                 modalDebt.classList.add('flex');
@@ -3378,6 +3396,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const rate = Number(document.getElementById('debt-rate').value) || 0;
                 const startDate = document.getElementById('debt-start').value;
                 const paid = Math.floor(Number(document.getElementById('debt-paid').value) || 0);
+                const nextDueDate = document.getElementById('debt-next-due').value;
 
                 if (!desc || !(total > 0) || !(count > 0) || count > 600 || !startDate || rate < 0 || paid < 0 || paid > count) {
                     showToast(debtLocaleText('invalid'));
@@ -3394,11 +3413,16 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     value: Math.round(installment * 100) / 100,
                     paid: index < paid
                 }));
+                if (nextDueDate && paid < count) {
+                    for (let index = paid; index < schedule.length; index++) {
+                        schedule[index].date = addMonths(nextDueDate, index - paid);
+                    }
+                }
                 const remaining = schedule.slice(paid).reduce((sum, item) => sum + item.value, 0);
                 const debtData = {
                     desc, balance: remaining, ratePct: rate,
                     minPayment: installment, installment, installmentCount: count,
-                    paidCount: paid, startDate, total, schedule
+                    paidCount: paid, startDate, nextDueDate: nextDueDate || (schedule[paid]?.date || ''), total, schedule
                 };
                 if (editingDebtId !== null) {
                     const debtIndex = state.debts.findIndex(item => Number(item.id) === Number(editingDebtId));
