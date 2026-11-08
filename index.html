@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FinControl Pro + Alexa & Gemini AI</title>
+    <link rel="manifest" href="./manifest.webmanifest">
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <!-- FontAwesome CDN -->
@@ -844,11 +845,13 @@ exports.handler = Alexa.SkillBuilders.custom()
                     <!-- Input Box -->
                     <div class="mt-4 pt-3 border-t border-slate-800 flex items-center space-x-2">
                         <input id="gemini-user-input" type="text" placeholder="Pergunte algo ao Gemini (ex: Como quitar minha dívida mais rápido?)" class="flex-grow bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                        <button id="btn-voice-gemini" type="button" aria-label="Ditado por voz para o Gemini" title="Falar comando" class="shrink-0 rounded-lg border border-purple-600 bg-purple-900/50 px-3 py-2 text-purple-200" ><i class="fa-solid fa-microphone"></i></button>
                         <button id="btn-send-gemini" class="bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs px-4 py-2 rounded-lg transition flex items-center space-x-1">
                             <i class="fa-solid fa-paper-plane"></i>
                             <span>Enviar</span>
                         </button>
                     </div>
+                    <p id="gemini-voice-status" role="status" aria-live="polite" class="text-xs text-slate-400">Toque no microfone, fale o comando e confira o texto antes de enviar. Nenhum lançamento é salvo sem confirmação.</p>
                 </div>
 
                 <!-- Sugestoes opcionais, fechadas por padrao. -->
@@ -3589,6 +3592,46 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             addGeminiShortcut('Propor ajuste das metas', 'Analise minha renda, contas, dívidas, investimentos realizados e metas atuais. Proponha UMA ação save_payoff_plan com valores mensais realistas de investimento e amortização, dívida existente e prazo de até 60 meses. Considere despesas variáveis não cadastradas como incerteza. Explique os motivos. Não registre aportes ou pagamentos; peça confirmação para salvar apenas o planejamento.');
             addGeminiShortcut('Revisar meu cronograma', 'Revise meu cronograma de investimentos e meu plano de quitação com base nos valores efetivamente registrados. Identifique diferenças entre planejado e realizado, riscos e até três melhorias práticas. Não altere dados nesta consulta.');
             btnSend.parentElement.insertAdjacentElement('afterend', actionBar);
+            const micButton=document.getElementById('btn-voice-gemini');
+            const voiceStatus=document.getElementById('gemini-voice-status');
+            const SpeechApi=window.SpeechRecognition||window.webkitSpeechRecognition;
+            let listening=false;
+            micButton.addEventListener('click',()=>{
+                if(!currentUser)return showToast('Entre na sua conta antes de usar o assistente.');
+                if(!SpeechApi){
+                    voiceStatus.textContent='Reconhecimento de voz não disponível neste navegador. Você pode usar o microfone do teclado do Android.';
+                    return;
+                }
+                if(listening)return;
+                const recognition=new SpeechApi();
+                recognition.lang=({pt:'pt-BR',it:'it-IT',en:'en-US',es:'es-ES'})[activeLanguage]||'pt-BR';
+                recognition.interimResults=false;
+                recognition.maxAlternatives=1;
+                recognition.onstart=()=>{listening=true;micButton.disabled=true;voiceStatus.textContent='Ouvindo… fale seu comando.';};
+                recognition.onresult=e=>{
+                    const transcript=String(e.results?.[0]?.[0]?.transcript||'').trim().slice(0,500);
+                    if(transcript){userInput.value=transcript;userInput.focus();voiceStatus.textContent='Texto reconhecido. Confira e toque em Enviar; mudanças exigirão confirmação.';}
+                };
+                recognition.onerror=e=>{voiceStatus.textContent='Não foi possível reconhecer a voz ('+String(e.error||'erro')+'). Tente novamente ou use o teclado.';};
+                recognition.onend=()=>{listening=false;micButton.disabled=false;if(voiceStatus.textContent==='Ouvindo… fale seu comando.')voiceStatus.textContent='Nenhuma fala identificada. Tente novamente.';};
+                try{recognition.start();}catch(e){listening=false;micButton.disabled=false;voiceStatus.textContent='Não foi possível ativar o microfone: '+String(e.message||e);}
+            });
+            // Assistants and Android shortcuts can OPEN a command draft via a link.
+            // Never auto-send externally supplied content or run financial operations.
+            function loadExternalCommandDraft(){
+                const params=new URLSearchParams(window.location.search);
+                const command=params.get('fincontrol_cmd');
+                const fromShortcut=params.get('assistente');
+                if(!command&&!fromShortcut)return;
+                history.replaceState(null,'',window.location.pathname+window.location.hash);
+                if(command && command.length<=500)userInput.value=command;
+                document.querySelector('[data-tab="gemini"]')?.click();
+                if(command)voiceStatus.textContent='Comando recebido de outro aplicativo. Revise o texto antes de enviar ao Gemini.';
+                else voiceStatus.textContent='Assistente de voz aberto. Toque no microfone para falar ou digite seu comando.';
+                userInput.focus();
+            }
+            window.fincontrolOpenVoiceAssistant=loadExternalCommandDraft;
+            if(currentUser)loadExternalCommandDraft();
             btnSend.addEventListener('click', () => handleSend());
             userInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } });
             document.querySelectorAll('.btn-gemini-prompt').forEach(btn => btn.addEventListener('click', () => handleSend(btn.innerText)));
@@ -3871,6 +3914,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             auth.onAuthStateChanged(async (user) => {
                 if (user) {
                     await loadUserData(user);
+                    window.fincontrolOpenVoiceAssistant?.();
                 } else {
                     currentUser = null;
                     resetStateForNewUser();
