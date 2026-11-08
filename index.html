@@ -1237,6 +1237,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         function translateLanguageNode(node) {
             if (!node) return;
             const translateTextNode = textNode => {
+                // O código de exemplo é localizado separadamente, sem traduzir instruções JavaScript.
+                if (textNode.parentElement?.closest('pre, code')) return;
                 const current = textNode.nodeValue;
                 const saved = languageTextState.get(textNode);
                 if (!saved || current !== saved.last) languageTextState.set(textNode, { original: current, last: current });
@@ -1271,6 +1273,30 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 }
             }
         }
+        function localizeGeminiCodeSamples(language) {
+            const italianExamples = [
+                ['// Exemplo de integração usando Google GenAI SDK (JavaScript)', '// Esempio di integrazione con Google GenAI SDK (JavaScript)'],
+                ['Você é um consultor financeiro pessoal especialista em investimentos no Brasil (CDI, Tesouro, LCI/LCA) e quitação de dívidas.', 'Sei un consulente finanziario personale specializzato in investimenti in Brasile (CDI, Tesouro, LCI/LCA) e nel rimborso dei debiti.'],
+                ['Analise a estrutura JSON recebida e dê respostas diretas, motivadoras e numéricas.', 'Analizza i dati JSON ricevuti e fornisci risposte chiare, motivate e con valori numerici.'],
+                ['Dados Financeiros:', 'Dati finanziari:'],
+                ['Pergunta:', 'Domanda:'],
+                ['# Exemplo de Script Python com o novo SDK google-genai', '# Esempio di script Python con il nuovo SDK google-genai'],
+                ['Atue como um planejador financeiro CFP®.', 'Agisci come un consulente di pianificazione finanziaria CFP®.'],
+                ['Renda Mensal:', 'Reddito mensile:'],
+                ['Contas Fixas:', 'Spese fisse:'],
+                ['Dívidas Totais:', 'Debiti totali:'],
+                ['Aporte Mensal Planejado:', 'Versamento mensile previsto:'],
+                ['Forneça 3 ações prioritárias para os próximos 6 meses.', 'Indica 3 azioni prioritarie per i prossimi 6 mesi.']
+            ];
+            for (const code of document.querySelectorAll('#code-gemini-js code, #code-gemini-python code')) {
+                if (code.dataset.originalExample === undefined) code.dataset.originalExample = code.textContent;
+                let shown = code.dataset.originalExample;
+                if (language === 'it') {
+                    for (const [pt, it] of italianExamples) shown = shown.split(pt).join(it);
+                }
+                if (code.textContent !== shown) code.textContent = shown;
+            }
+        }
         function applyLanguage(language) {
             activeLanguage = ['pt','en','es','it'].includes(language) ? language : 'pt';
             try { localStorage.setItem(LANGUAGE_KEY, activeLanguage); } catch (error) {}
@@ -1282,6 +1308,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 investChart.update('none');
             }
             translateLanguageNode(document.body);
+            localizeGeminiCodeSamples(activeLanguage);
             const picker = document.getElementById('language-select');
             if (picker && picker.value !== activeLanguage) picker.value = activeLanguage;
         }
