@@ -3397,6 +3397,28 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 }
                 recalculate();
             }
+            // Clear one-off expense commands do not need a generative API call.
+            function parseSimpleExpense(text) {
+                const raw=String(text||'').trim();
+                const q=raw.toLocaleLowerCase('pt-BR');
+                if(!/^(gastei|paguei|despesa|gasto|cadastre uma despesa|registre uma despesa|adicione uma despesa)\b/i.test(q))return null;
+                if(/\b(d[ií]vida|parcela|parcelado|mensal|recorrente|investimento|amanh[ãa]|ontem|semana passada|m[eê]s passado|exclua|apague)\b/i.test(q))return null;
+                const m=q.match(/(?:r\$\s*)?(\d{1,6}(?:[.,]\d{1,2})?)\s*(?:reais?|r\$)?\s+(?:de |do |da |em |com |no |na )?([\p{L}\p{N}\s-]+?)(?:\s+hoje)?$/u);
+                if(!m)return null;
+                const val=Number(m[1].replace(',','.'));
+                const desc=m[2].trim().replace(/\s+/g,' ');
+                if(!Number.isFinite(val)||val<=0||val>100000||!desc||desc.length>80)return null;
+                if((state.currency||'BRL')!=='BRL')return null;
+                const cat=/combust[ií]vel|gasolina|etanol|diesel|posto/.test(desc)?'Transporte':
+                    /mercado|supermercado|comida|restaurante/.test(desc)?'Alimentação':
+                    /farm[aá]cia|rem[eé]dio/.test(desc)?'Saúde':'Outros';
+                const now=new Date();
+                const date=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+                return {type:'add_bill',data:{desc:desc[0].toUpperCase()+desc.slice(1),cat,val,date,paid:false}};
+            }
+            function isGeminiLimitError(error) {
+                return /(?:429|quota exceeded|exceeded your current quota|RESOURCE_EXHAUSTED|free.tier.requests)/i.test(String(error?.message||error||''));
+            }
             async function handleSend(forcedText) {
                 const question = (typeof forcedText === 'string' ? forcedText : userInput.value).trim();
                 if (!question || busy) return;
@@ -3407,6 +3429,16 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const status = addMessage('ai','Analisando seus dados...');
                 try {
                     if (!currentUser) throw new Error('Faça login para analisar seus dados financeiros.');
+                    const localAction=parseSimpleExpense(question);
+                    if(localAction){
+                        const valid=validateAction(localAction);
+                        if(valid){
+                            applyAction(valid);
+                            status.remove();
+                            addMessage('ai','Despesa registrada sem usar o Gemini: '+valid.data.desc+' — '+formatBRL(valid.data.val)+'.');
+                            return;
+                        }
+                    }
                     const model = await getModel();
                     const context = JSON.stringify(snapshot());
                     const conversation = history.slice(-8).map(h => h.role + ': ' + h.text).join('\\n');
@@ -3441,7 +3473,9 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 } catch (error) {
                     status.remove();
                     console.error('Gemini AI Logic:',error);
-                    addMessage('ai','Não foi possível consultar o Gemini: ' + (error?.message || 'erro desconhecido') + '. Nenhum dado foi alterado.');
+                    addMessage('ai',isGeminiLimitError(error)
+                        ? 'O limite gratuito do Gemini foi atingido hoje. Nenhum dado foi alterado. Você ainda pode registrar despesas simples como “Gastei 50 reais de combustível hoje”, sem usar a IA.'
+                        : 'Não foi possível consultar o Gemini: '+String(error?.message||'erro desconhecido').slice(0,180)+'. Nenhum dado foi alterado.');
                 } finally { busy = false; btnSend.disabled = false; }
             }
             // Diagnóstico automático apenas de leitura, uma vez por abertura de sessão.
@@ -3452,7 +3486,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             autoControls.className = 'flex items-center gap-2 text-xs text-slate-300 mt-3 mb-2';
             const autoCheckbox = document.createElement('input');
             autoCheckbox.type = 'checkbox';
-            autoCheckbox.checked = localStorage.getItem(autoPrefKey) !== 'off';
+            autoCheckbox.checked = localStorage.getItem(autoPrefKey) === 'on';
             autoCheckbox.className = 'accent-purple-500';
             autoControls.append(autoCheckbox, document.createTextNode('Analisar automaticamente ao entrar (somente leitura)'));
             chatHistory.parentElement.insertBefore(autoControls, chatHistory);
@@ -3565,8 +3599,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 } catch (error) {
                     status.remove();
                     console.error('Diagnóstico automático Gemini:', error);
-                    addMessage('ai', 'Não foi possível executar o diagnóstico automático. Seus dados não foram alterados. Você pode tentar novamente na aba Gemini.');
-                    lastAutomaticUid = null;
+                    addMessage('ai',isGeminiLimitError(error)
+                        ? 'Diagnóstico indisponível: a cota gratuita diária do Gemini acabou. O resumo financeiro acima continua disponível.'
+                        : 'Não foi possível executar o diagnóstico automático. Seus dados não foram alterados.');
+                    if(!isGeminiLimitError(error))lastAutomaticUid = null;
                 }
             };
             const refreshDiagnosis = document.createElement('button');
