@@ -221,6 +221,18 @@
                         <option value="es">🇪🇸 Español</option>
                         <option value="it">🇮🇹 Italiano</option>
                     </select>
+                    <label for="currency-select" class="sr-only">Moeda</label>
+                    <select id="currency-select" aria-label="Moeda da conta" class="rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-xs text-slate-200">
+                      <option value="BRL">🇧🇷 BRL · Real</option>
+                      <option value="EUR">🇪🇺 EUR · Euro</option>
+                      <option value="USD">🇺🇸 USD · Dólar</option>
+                      <option value="GBP">🇬🇧 GBP · Libra</option>
+                      <option value="CHF">🇨🇭 CHF · Franco</option>
+                      <option value="CAD">🇨🇦 CAD · Dólar canadense</option>
+                      <option value="AUD">🇦🇺 AUD · Dólar australiano</option>
+                      <option value="MXN">🇲🇽 MXN · Peso mexicano</option>
+                      <option value="ARS">🇦🇷 ARS · Peso argentino</option>
+                    </select>
                     <span id="account-email" class="hidden max-w-[160px] truncate text-xs text-slate-400 sm:inline"></span>
                     <button id="btn-logout" type="button" class="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:border-rose-500 hover:text-rose-300">
                         <i class="fa-solid fa-right-from-bracket mr-1"></i>Sair
@@ -1232,7 +1244,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 }
                 translated = canonical;
             }
-            return original.replace(trimmed, translated);
+            const symbol = CURRENCY_SYMBOLS[state.currency] || 'R$';
+            return original.replace(trimmed, translated).split('(R$)').join('(' + symbol + ')');
         }
         function translateLanguageNode(node) {
             if (!node) return;
@@ -1308,6 +1321,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 investChart.update('none');
             }
             translateLanguageNode(document.body);
+            syncCurrencyPicker();
             localizeGeminiCodeSamples(activeLanguage);
             const picker = document.getElementById('language-select');
             if (picker && picker.value !== activeLanguage) picker.value = activeLanguage;
@@ -1334,6 +1348,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         const state = {
+            currency: 'BRL',
             income: 5000.0,
             bills: [
                 { id: 1, desc: 'Aluguel & Condomínio', cat: 'Moradia', val: 1400.0, date: '2026-11-10', paid: true },
@@ -1380,8 +1395,102 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         let cloudSaveTimer = null;
         let authMode = 'login';
 
+
+        const CURRENCIES = ['BRL','EUR','USD','GBP','CHF','CAD','AUD','MXN','ARS'];
+        const CURRENCY_SYMBOLS = {BRL:'R$',EUR:'€',USD:'US$',GBP:'£',CHF:'CHF',CAD:'CA$',AUD:'A$',MXN:'MX$',ARS:'AR$'};
+        function syncCurrencyPicker() {
+            const select = document.getElementById('currency-select');
+            if (select) select.value = CURRENCIES.includes(state.currency) ? state.currency : 'BRL';
+        }
+        function hasCurrencyAmounts(d) {
+            const exists = x => Number.isFinite(Number(x)) && Number(x) !== 0;
+            return exists(d.income) ||
+                (d.bills || []).some(b => exists(b.val)) ||
+                (d.debts || []).some(v => ['balance','minPayment','installment','total'].some(k => exists(v[k]))) ||
+                ['initial','monthly'].some(k => exists(d.investmentConfig?.[k])) ||
+                Object.values(d.monthlyInvestments || {}).some(exists) ||
+                Object.values(d.monthlyAmortizations || {}).some(exists) ||
+                ['monthlyInvestment','monthlyExtraPayment'].some(k => exists(d.aiPayoffPlan?.[k]));
+        }
+        function multiplyCurrencyAmounts(d, factor) {
+            const round = x => Math.round((x * factor + Number.EPSILON) * 100) / 100;
+            const fields = (obj, keys) => {
+                if (!obj) return;
+                for (const key of keys) if (typeof obj[key] === 'number') obj[key] = round(obj[key]);
+            };
+            fields(d,['income']);
+            (d.bills || []).forEach(v => fields(v,['val']));
+            (d.debts || []).forEach(v => {
+                fields(v,['total','balance','installment','minPayment']);
+                (v.schedule || []).forEach(p => fields(p,['value']));
+            });
+            fields(d.investmentConfig,['initial','monthly']);
+            fields(d.aiPayoffPlan,['monthlyInvestment','monthlyExtraPayment']);
+            for (const key of ['monthlyInvestments','monthlyAmortizations'])
+                Object.keys(d[key] || {}).forEach(month => { d[key][month] = round(d[key][month]); });
+            Object.values(d.appliedAmortizations || {}).forEach(v => fields(v,['amount','balanceBefore','balanceAfter']));
+        }
+        async function updateAccountCurrency(target) {
+            const previous = state.currency || 'BRL';
+            const selector = document.getElementById('currency-select');
+            if (!currentUser || !CURRENCIES.includes(target) || target === previous) { syncCurrencyPicker(); return; }
+            const uid = currentUser.uid;
+            const data = JSON.parse(JSON.stringify(getAppData()));
+            if (hasCurrencyAmounts(data)) {
+                const instructions = {
+                    pt:'Para mudar de {a} para {b}:\n1 = os números já estão em {b}, alterar somente o símbolo.\n2 = converter TODOS os valores com uma cotação manual.\nCancelar = não alterar.',
+                    it:'Per cambiare da {a} a {b}:\n1 = gli importi sono GIÀ in {b}; cambia soltanto il simbolo.\n2 = converti TUTTI gli importi con un cambio inserito manualmente.\nAnnulla = non modificare.',
+                    en:'To switch from {a} to {b}:\n1 = amounts are ALREADY in {b}; change only the symbol.\n2 = convert ALL values with a manually entered exchange rate.\nCancel = no changes.',
+                    es:'Para cambiar de {a} a {b}:\n1 = los importes YA están en {b}, cambia solo el símbolo.\n2 = convierte TODOS los importes con una tasa manual.\nCancelar = no cambiar.'
+                };
+                const mode = prompt((instructions[activeLanguage] || instructions.pt).replaceAll('{a}', previous).replaceAll('{b}', target), '2');
+                if (mode !== '1' && mode !== '2') { syncCurrencyPicker(); return; }
+                let factor = 1;
+                if (mode === '2') {
+                    const raw = prompt('1 ' + previous + ' equivale a quantas unidades de ' + target + '? Informe a taxa de câmbio manual (sem consulta automática).');
+                    if (raw === null) { syncCurrencyPicker(); return; }
+                    factor = Number(raw.trim().replace(',','.'));
+                    if (!Number.isFinite(factor) || factor <= 0 || factor > 1000000) {
+                        alert('Taxa inválida. Nenhum dado foi alterado.');
+                        syncCurrencyPicker(); return;
+                    }
+                    multiplyCurrencyAmounts(data, factor);
+                }
+                if (!confirm(previous + ' → ' + target + '\n' +
+                    (mode === '2' ? 'Converter todos os valores monetários com a taxa ' + factor : 'Não converter os valores; apenas alterar a moeda.') +
+                    '\nConfirmar para esta conta?')) {
+                    syncCurrencyPicker(); return;
+                }
+            }
+            data.currency = target;
+            selector.disabled = true;
+            try {
+                clearTimeout(cloudSaveTimer);
+                await db.collection('users').doc(uid).collection('appData').doc('main').set({
+                    ...data, updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+                });
+                if (!currentUser || currentUser.uid !== uid) return;
+                applyAppData(data);
+                document.getElementById('inv-initial').value = state.investmentConfig.initial;
+                syncCurrencyPicker();
+                recalculate();
+                applyLanguage(activeLanguage);
+                showToast('Moeda salva: ' + target);
+            } catch (error) {
+                console.error('Moeda não sincronizada:',error);
+                alert('Falha ao salvar a moeda no Firebase. Nenhum dado foi alterado.');
+                syncCurrencyPicker();
+            } finally { selector.disabled = false; }
+        }
+        function initCurrencySelector() {
+            const picker = document.getElementById('currency-select');
+            if (picker) picker.addEventListener('change', () => { void updateAccountCurrency(picker.value); });
+            syncCurrencyPicker();
+        }
+
         function getAppData() {
             return {
+                currency: state.currency || 'BRL',
                 income: state.income,
                 bills: state.bills,
                 debts: state.debts,
@@ -1396,6 +1505,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
         function applyAppData(saved) {
             if (!saved || typeof saved !== 'object') return;
+            state.currency = CURRENCIES.includes(saved.currency) ? saved.currency : 'BRL';
             if (Number.isFinite(saved.income)) state.income = saved.income;
             if (Array.isArray(saved.bills)) state.bills = saved.bills;
             if (Array.isArray(saved.debts)) state.debts = saved.debts;
@@ -1413,6 +1523,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         function resetStateForNewUser() {
+            state.currency = 'BRL';
             state.income = 0;
             state.bills = [];
             state.debts = [];
@@ -1510,6 +1621,9 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 return;
             }
             overlay.classList.add('hidden');
+            syncCurrencyPicker();
+            const initial = document.getElementById('inv-initial');
+            if (initial) initial.value = state.investmentConfig.initial;
             try { localStorage.setItem(userStorageKey(user.uid), JSON.stringify(getAppData())); } catch (error) { console.warn('Cache indisponível:', error); }
             for (const [name, callback] of [
                 ['tela financeira', () => recalculate()],
@@ -1606,7 +1720,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         function formatBRL(val) {
-            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+            const locale = ({pt:'pt-BR',it:'it-IT',en:'en-US',es:'es-ES'})[activeLanguage] || 'pt-BR';
+            return new Intl.NumberFormat(locale, {style:'currency',currency:state.currency || 'BRL'}).format(Number(val) || 0);
         }
 
         function addMonths(dateString, count) {
@@ -2327,6 +2442,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 return wrapper;
             };
             const snapshot = () => ({
+                currency: state.currency || 'BRL',
                 income: state.income,
                 bills: state.bills.map(({id,desc,cat,val,date,paid}) => ({id,desc,cat,val,date,paid})),
                 debts: state.debts.map(({id,desc,balance,ratePct,minPayment}) => ({id,desc,balance,ratePct,minPayment})),
@@ -2487,7 +2603,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             overview.className = 'rounded-xl border border-slate-700 bg-slate-900/80 p-4 my-3 text-sm text-slate-200';
             overview.setAttribute('aria-label', 'Resumo financeiro e cumprimento das metas');
             autoControls.insertAdjacentElement('afterend', overview);
-            const money = n => Number(n || 0).toLocaleString('pt-BR', {style:'currency',currency:'BRL'});
+            const money = n => formatBRL(n);
             const safeNumber = n => Math.max(0, Number(n) || 0);
             const renderGeminiOverview = () => {
                 if (!currentUser) { overview.replaceChildren(); return; }
@@ -2798,6 +2914,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 if (box) { box.textContent = 'Erro ao iniciar o login. Atualize a página (Ctrl+F5).'; box.classList.remove('hidden'); }
             }
             try { initLanguageSelector(); } catch (error) { console.error('Falha na tradução:', error); }
+            try { initCurrencySelector(); } catch (error) { console.error('Falha na seleção de moeda:', error); }
             // Registra o observador antes de módulos secundários: erros em gráficos/IA
             // não devem impedir que usuários existentes consigam entrar.
             auth.onAuthStateChanged(async (user) => {
