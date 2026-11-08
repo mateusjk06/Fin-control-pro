@@ -399,7 +399,7 @@
                         <div class="flex-grow">
                             <h5 class="text-xs font-bold text-purple-300 uppercase tracking-wide">Insight Gemini AI</h5>
                             <p id="dash-ai-tip" class="text-xs text-slate-300 mt-1 leading-relaxed">
-                                Seu comprometimento fixo está em 64%. Recomendamos utilizar R$ 800 do seu saldo livre para amortizar a dívida do cartão de crédito (juros de 12% a.m.) antes de aumentar seus aportes no CDI.
+                                As recomendações financeiras são personalizadas conforme os seus registros, juros, disponibilidade e metas.
                             </p>
                         </div>
                         <button id="btn-quick-ask-gemini" class="text-xs bg-purple-600 hover:bg-purple-500 text-white font-medium px-3 py-1.5 rounded-lg transition whitespace-nowrap">
@@ -492,7 +492,7 @@
                         <!-- Results Box -->
                         <div id="debt-sim-result" class="mt-4 p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs space-y-1">
                             <p class="text-slate-400">Tempo total estimado: <span class="text-emerald-400 font-bold">14 meses</span></p>
-                            <p class="text-slate-400">Economia estimada em juros: <span class="text-cyan-400 font-bold">R$ 1.420,00</span></p>
+                            <p class="text-slate-400">Economia estimada em juros: <span class="text-cyan-400 font-bold">—</span></p>
                         </div>
                     </div>
                 </div>
@@ -704,7 +704,7 @@
                             <span class="text-xs font-bold uppercase tracking-wider">Resposta da Alexa</span>
                         </div>
                         <p id="alexa-speech-output" class="text-xs text-slate-200 italic leading-relaxed">
-                            "Olá! No momento, seu saldo livre estimado para este mês é de R$ 1.800,00, com 64% da sua renda comprometida."
+                            "Esta é uma mensagem demonstrativa. Consulte os valores reais no painel de controle."
                         </p>
                     </div>
                 </div>
@@ -1225,6 +1225,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         for (const [pt,it] of [["realizados de","effettuati su"],["planejados","previsti"],["realizados","effettuati"],["sem meta","senza obiettivo"],["Os percentuais usam somente registros deste mês.","Le percentuali si basano soltanto sulle registrazioni del mese corrente."],["Planejamento não significa pagamento realizado.","Il piano non equivale a un pagamento effettuato."],["A amortização registrada não confirma baixa bancária.","La registrazione di un rimborso anticipato non conferma un pagamento alla banca."],["Propor ajuste das metas","Proponi una modifica degli obiettivi"],["Revisar meu cronograma","Rivedi il mio piano"],["Enviar","Invia"],["Analisando seus dados...","Analisi dei dati in corso..."],["Nenhum dado foi alterado.","Nessun dato è stato modificato."],["Diagnóstico automático: analisando seus dados (sem alterar registros)...","Diagnosi automatica: analisi dei dati in corso (senza modificare le registrazioni)..."],["A API do Gemini permite análises contextuais em tempo real enviando a estrutura do seu aplicativo como um JSON no prompt do sistema.","L’API Gemini consente analisi contestuali in tempo reale utilizzando i dati dell’applicazione in formato JSON."],["Aporte Inicial (R$)","Versamento iniziale (R$)"],["Aporte Mensal (R$)","Versamento mensile (R$)"],["Prazo (Meses)","Durata (mesi)"],["Juros Compostos","Interessi composti"],["Juros ao mês (%)","Interessi mensili (%)"],["Saldo Inicial","Saldo iniziale"],["Saldo Bruto","Saldo lordo"],["Saldo Líquido Est.","Saldo netto stimato"],["Aliquota IR","Aliquota fiscale"],["Rendimento mês","Rendimento mensile"],["Saldo Final Líquido","Saldo finale netto"],["Imposto de Renda (Est.)","Imposta sul reddito (stima)"],["Total Investido (Aportes)","Totale investito (versamenti)"],["Saldo Total (Juros Compostos)","Saldo totale (interessi composti)"],["Sem registro","Nessuna registrazione"],["Mês do aporte","Mese del versamento"],["Salvar aporte do mês","Salva il versamento del mese"],["Meses com aporte registrado","Mesi con versamenti registrati"],["Histórico de aportes reais","Storico dei versamenti effettivi"],["Nenhum aporte registrado ainda.","Nessun versamento ancora registrato."],["Você","Tu"],["Você tem","Hai"],["Sua Pergunta","La tua domanda"],["Previsão","Previsione"],["Projeção","Proiezione"],["Investimentos projetados no período","Investimenti previsti nel periodo"],["Simule a rentabilidade do CDI composto mês a mês e visualize a curva de patrimônio.","Simula i rendimenti composti legati al CDI mese per mese e visualizza l’evoluzione del patrimonio."],["Investimentos:","Investimenti:"],["Amortização extra:","Rimborso anticipato extra:"]]) UI_TRANSLATIONS.it[pt] = it;
 
         UI_TRANSLATIONS.it['Olá! Posso ajudar a analisar os dados financeiros cadastrados nesta conta. O que você gostaria de verificar?'] = 'Ciao! Posso aiutarti ad analizzare i dati finanziari registrati nel tuo account. Cosa desideri verificare?';
+
+        UI_TRANSLATIONS.it['As recomendações financeiras são personalizadas conforme os seus registros, juros, disponibilidade e metas.'] = 'Le raccomandazioni finanziarie si basano sui dati registrati, sui tassi, sulla disponibilità e sugli obiettivi.';
+        UI_TRANSLATIONS.en['As recomendações financeiras são personalizadas conforme os seus registros, juros, disponibilidade e metas.'] = 'Financial recommendations are personalized based on your records, rates, available funds and goals.';
+        UI_TRANSLATIONS.es['As recomendações financeiras são personalizadas conforme os seus registros, juros, disponibilidade e metas.'] = 'Las recomendaciones financieras se basan en tus registros, tasas, fondos disponibles y objetivos.';
         // Mantém o texto original de cada elemento para permitir alternar idiomas sem perder conteúdo.
         const languageTextState = new WeakMap();
         const languageAttributeState = new WeakMap();
@@ -2430,7 +2434,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                         const pendingCount = state.bills.filter(b => !b.paid).length;
                         output.innerText = `"Você possui ${pendingCount} contas pendentes para vencer neste mês. A próxima é ${state.bills[1].desc} no valor de ${formatBRL(state.bills[1].val)}."`;
                     } else if (cmd === 'aporte') {
-                        output.innerText = `"Aporte de R$ 1.000,00 registrado com sucesso na sua projeção de investimentos para o próximo mês."`;
+                        output.innerText = "Esta é uma simulação de comando. Nenhum aporte foi registrado.";
                     }
                 });
             });
