@@ -208,6 +208,10 @@
                         <i class="fa-solid fa-receipt"></i>
                         <span>Contas & Dívidas</span>
                     </button>
+                    <button data-tab="history" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
+                        <i class="fa-solid fa-calendar-chart"></i>
+                        <span>Análise mensal</span>
+                    </button>
                     <button data-tab="investments" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
                         <i class="fa-solid fa-chart-line"></i>
                         <span>Cronograma de Investimentos</span>
@@ -436,6 +440,33 @@
                     </div>
                 </div>
             </div>
+        </section>
+
+        <!-- TAB: MULTI-MONTH FINANCIAL ANALYSIS -->
+        <section id="tab-history" class="tab-content hidden space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                <div>
+                    <h2 class="text-xl font-bold text-white">Análise financeira por período</h2>
+                    <p class="text-xs text-slate-400">Compare receitas, contas, parcelas e saldo projetado mês a mês.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="history-months" class="text-xs text-slate-400">Período</label>
+                    <select id="history-months" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                        <option value="3">3 meses</option><option value="6">6 meses</option><option value="12" selected>12 meses</option><option value="24">24 meses</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4"><p class="text-xs text-slate-400">Receita acumulada estimada</p><p id="hist-income" class="text-xl font-bold text-emerald-400 mt-1">—</p></div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4"><p class="text-xs text-slate-400">Despesas e parcelas estimadas</p><p id="hist-expenses" class="text-xl font-bold text-rose-400 mt-1">—</p></div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4"><p class="text-xs text-slate-400">Saldo acumulado projetado</p><p id="hist-net" class="text-xl font-bold text-cyan-400 mt-1">—</p></div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5"><div class="h-64"><canvas id="chart-history"></canvas></div></div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-800"><h3 class="text-sm font-semibold">Detalhamento mês a mês</h3><p class="text-xs text-slate-400 mt-1">Projeção baseada na renda, contas recorrentes e parcelas cadastradas.</p></div>
+                <div class="overflow-x-auto"><table class="w-full text-xs text-left"><thead class="bg-slate-950 text-slate-400"><tr><th class="p-3">Mês</th><th class="p-3">Receitas</th><th class="p-3">Contas</th><th class="p-3">Parcelas</th><th class="p-3">Saldo do mês</th><th class="p-3">Acumulado</th></tr></thead><tbody id="history-table" class="divide-y divide-slate-800"></tbody></table></div>
+            </div>
+            <p class="text-[11px] text-amber-300/80">Atenção: meses futuros são projeções, não lançamentos reais. Os resultados dependem dos valores e vencimentos cadastrados.</p>
         </section>
 
         <!-- TAB 3: INVESTMENT SCHEDULE & CALCULATOR -->
@@ -863,6 +894,24 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         </div>
     </div>
 
+    <!-- Modal for installment debt -->
+    <div id="modal-debt" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4 overflow-y-auto">
+      <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-5 space-y-4 my-auto">
+        <h3 class="text-base font-bold text-white">Cadastrar dívida parcelada</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <label class="sm:col-span-2 text-slate-400">Descrição<input id="debt-desc" type="text" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white" placeholder="Ex.: Geladeira, empréstimo, cartão"></label>
+          <label class="text-slate-400">Valor total (R$)<input id="debt-total" type="number" min="0.01" step="0.01" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white" placeholder="3000"></label>
+          <label class="text-slate-400">Quantidade de parcelas<input id="debt-count" type="number" min="1" max="600" step="1" value="12" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
+          <label class="text-slate-400">Valor da parcela (R$)<input id="debt-installment" type="number" min="0.01" step="0.01" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white" placeholder="Calcular automaticamente"></label>
+          <label class="text-slate-400">Juros ao mês (%)<input id="debt-rate" type="number" min="0" step="0.01" value="0" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
+          <label class="text-slate-400">Primeiro vencimento<input id="debt-start" type="date" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
+          <label class="text-slate-400">Parcelas já pagas<input id="debt-paid" type="number" min="0" step="1" value="0" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
+        </div>
+        <p class="text-[11px] text-slate-400">Se informar o valor da parcela, ele será usado no cronograma. Se deixar vazio, o sistema calcula uma parcela estimada com juros mensais.</p>
+        <div class="flex justify-end gap-2"><button id="debt-cancel" class="px-4 py-2 bg-slate-800 rounded-lg text-xs text-white">Cancelar</button><button id="debt-save" class="px-4 py-2 bg-rose-600 rounded-lg text-xs font-semibold text-white">Salvar dívida</button></div>
+      </div>
+    </div>
+
     <!-- Modal for Editing Income -->
     <div id="modal-income" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-sm w-full p-6 space-y-4">
@@ -904,6 +953,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
         let budgetChart = null;
         let investChart = null;
+        let historyChart = null;
 
         function showToast(msg) {
             const toast = document.getElementById('toast-notification');
@@ -916,6 +966,101 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
         function formatBRL(val) {
             return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+        }
+
+        function addMonths(dateString, count) {
+            const d = new Date(dateString + 'T12:00:00');
+            const day = d.getDate();
+            d.setDate(1);
+            d.setMonth(d.getMonth() + count);
+            const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+            d.setDate(Math.min(day, last));
+            return d.toISOString().slice(0, 10);
+        }
+
+        function installmentForDebt(debt, index) {
+            return Array.isArray(debt.schedule)
+                ? (debt.schedule[index]?.value || debt.installment || debt.minPayment || 0)
+                : (debt.installment || debt.minPayment || 0);
+        }
+
+        function billOccursInMonth(bill, monthDate) {
+            const first = new Date((bill.date || '2000-01-01') + 'T12:00:00');
+            const target = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+            const firstMonth = new Date(first.getFullYear(), first.getMonth(), 1);
+            const diff = (target.getFullYear() - firstMonth.getFullYear()) * 12 + target.getMonth() - firstMonth.getMonth();
+            if (diff < 0) return false;
+            // Bills already present in the app remain recurring for compatibility.
+            if (bill.repeat === 'once') return diff === 0;
+            if (bill.repeat === 'limited') return diff < Math.max(1, Number(bill.durationMonths) || 1);
+            return true;
+        }
+
+        function renderHistoryAnalysis() {
+            const table = document.getElementById('history-table');
+            if (!table) return;
+            const months = Number(document.getElementById('history-months')?.value || 12);
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth(), 1);
+            const rows = [];
+            let cumulative = 0, incomeTotal = 0, expenseTotal = 0;
+
+            for (let i = 0; i < months; i++) {
+                const dt = new Date(start.getFullYear(), start.getMonth() + i, 1);
+                const key = dt.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+                const bills = state.bills.reduce((sum, bill) => sum + (billOccursInMonth(bill, dt) ? (Number(bill.val) || 0) : 0), 0);
+                let debtPay = 0;
+                state.debts.forEach(debt => {
+                    const first = debt.startDate || (start.getFullYear() + '-' + String(start.getMonth() + 1).padStart(2, '0') + '-01');
+                    const firstDate = new Date(first + 'T12:00:00');
+                    const dueIndex = (dt.getFullYear() - firstDate.getFullYear()) * 12 + dt.getMonth() - firstDate.getMonth();
+                    const paid = Number(debt.paidCount) || 0;
+                    const count = Number(debt.installmentCount) || 0;
+                    if (count > 0 && dueIndex >= paid && dueIndex < count) debtPay += installmentForDebt(debt, dueIndex);
+                    else if (!count && dueIndex === 0) debtPay += Number(debt.minPayment) || 0;
+                });
+                const net = state.income - bills - debtPay;
+                cumulative += net;
+                incomeTotal += state.income;
+                expenseTotal += bills + debtPay;
+                rows.push({ key, income: state.income, bills, debtPay, net, cumulative });
+            }
+
+            document.getElementById('hist-income').textContent = formatBRL(incomeTotal);
+            document.getElementById('hist-expenses').textContent = formatBRL(expenseTotal);
+            document.getElementById('hist-net').textContent = formatBRL(cumulative);
+            table.innerHTML = rows.map(row => `<tr class="text-slate-300"><td class="p-3 font-semibold">${row.key}</td><td class="p-3 text-emerald-400">${formatBRL(row.income)}</td><td class="p-3">${formatBRL(row.bills)}</td><td class="p-3 text-rose-300">${formatBRL(row.debtPay)}</td><td class="p-3 font-semibold ${row.net < 0 ? 'text-rose-400' : 'text-cyan-300'}">${formatBRL(row.net)}</td><td class="p-3">${formatBRL(row.cumulative)}</td></tr>`).join('');
+
+            if (historyChart) {
+                historyChart.data.labels = rows.map(row => row.key);
+                historyChart.data.datasets[0].data = rows.map(row => row.income);
+                historyChart.data.datasets[1].data = rows.map(row => row.bills + row.debtPay);
+                historyChart.update();
+            }
+        }
+
+        function initHistoryChart() {
+            const canvas = document.getElementById('chart-history');
+            if (!canvas || typeof Chart === 'undefined') return;
+            historyChart = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Receitas', data: [], backgroundColor: '#10b981' },
+                        { label: 'Despesas e parcelas', data: [], backgroundColor: '#f43f5e' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+                        y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+                    }
+                }
+            });
         }
 
         function initTabs() {
@@ -932,6 +1077,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
                     if (target === 'dashboard' && budgetChart) budgetChart.update();
                     if (target === 'investments' && investChart) investChart.update();
+                    if (target === 'history') renderHistoryAnalysis();
                 });
             });
         }
@@ -977,6 +1123,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             renderUpcomingBills();
             renderBillsTable();
             renderDebtsList();
+            renderHistoryAnalysis();
             updateBudgetChart(totalBills, totalDebtsPay, monthlyInvest, Math.max(0, freeBalance - monthlyInvest));
             calculateInvestmentSchedule();
         }
@@ -1361,6 +1508,58 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         function initModals() {
             const modalBill = document.getElementById('modal-bill');
             const modalIncome = document.getElementById('modal-income');
+            const modalDebt = document.getElementById('modal-debt');
+
+            document.getElementById('btn-add-debt').addEventListener('click', () => {
+                document.getElementById('debt-start').value = new Date().toLocaleDateString('en-CA');
+                modalDebt.classList.remove('hidden');
+                modalDebt.classList.add('flex');
+            });
+            document.getElementById('debt-cancel').addEventListener('click', () => {
+                modalDebt.classList.add('hidden');
+                modalDebt.classList.remove('flex');
+            });
+            document.getElementById('debt-save').addEventListener('click', () => {
+                const desc = document.getElementById('debt-desc').value.trim();
+                const total = Number(document.getElementById('debt-total').value);
+                const count = Math.floor(Number(document.getElementById('debt-count').value));
+                const enteredInstallment = Number(document.getElementById('debt-installment').value);
+                const rate = Number(document.getElementById('debt-rate').value) || 0;
+                const startDate = document.getElementById('debt-start').value;
+                const paid = Math.floor(Number(document.getElementById('debt-paid').value) || 0);
+
+                if (!desc || !(total > 0) || !(count > 0) || count > 600 || !startDate || rate < 0 || paid < 0 || paid > count) {
+                    showToast('Confira a descrição, o valor, as parcelas, os juros e o vencimento.');
+                    return;
+                }
+                const monthlyRate = rate / 100;
+                const calculated = monthlyRate === 0
+                    ? total / count
+                    : total * monthlyRate / (1 - Math.pow(1 + monthlyRate, -count));
+                const installment = enteredInstallment > 0 ? enteredInstallment : calculated;
+                const schedule = Array.from({ length: count }, (_, index) => ({
+                    number: index + 1,
+                    date: addMonths(startDate, index),
+                    value: Math.round(installment * 100) / 100,
+                    paid: index < paid
+                }));
+                const remaining = schedule.slice(paid).reduce((sum, item) => sum + item.value, 0);
+                state.debts.push({
+                    id: Date.now(), desc, balance: remaining, ratePct: rate,
+                    minPayment: installment, installment, installmentCount: count,
+                    paidCount: paid, startDate, total, schedule
+                });
+                modalDebt.classList.add('hidden');
+                modalDebt.classList.remove('flex');
+                ['debt-desc', 'debt-total', 'debt-installment'].forEach(id => document.getElementById(id).value = '');
+                document.getElementById('debt-count').value = '12';
+                document.getElementById('debt-rate').value = '0';
+                document.getElementById('debt-paid').value = '0';
+                showToast('Dívida cadastrada com sucesso!');
+                recalculate();
+            });
+
+            document.getElementById('history-months').addEventListener('change', renderHistoryAnalysis);
 
             document.getElementById('btn-add-bill').addEventListener('click', () => {
                 modalBill.classList.remove('hidden');
@@ -1374,7 +1573,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const val = parseFloat(document.getElementById('inp-bill-val').value) || 100.0;
                 const date = document.getElementById('inp-bill-date').value || '2026-11-25';
 
-                state.bills.push({ id: Date.now(), desc, cat, val, date, paid: false });
+                state.bills.push({ id: Date.now(), desc, cat, val, date, paid: false, repeat: 'monthly' });
                 modalBill.classList.add('hidden');
                 showToast(`Conta "${desc}" adicionada com sucesso!`);
                 recalculate();
@@ -1430,6 +1629,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             initTabs();
             initBudgetChart();
             initInvestChart();
+            initHistoryChart();
             initModals();
             initAlexaSimulator();
             initGeminiSimulator();
