@@ -11,6 +11,30 @@ async function main(){
   const users=await db.collection("users").listDocuments();
   const dry=process.env.PUSH_DRY_RUN==="true";
   let eligible=0,accepted=0,errors=0;
+  // Manual targeted test: only the newest device of exactly one eligible account.
+  // Never touches daily notification logs or sends to multiple users.
+  if(process.env.PUSH_TEST_LATEST_DEVICE==="true"){
+    const candidates=[];
+    for(const user of users){
+      const snap=await user.collection("appData").doc("main").get();
+      if(!snap.exists)continue;
+      const data=snap.data()||{};
+      if(data.contactPreferences?.reminders===false||data.contactPreferences?.pushOptIn!==true)continue;
+      const tokens=[...new Set((Array.isArray(data.pushTokens)?data.pushTokens:[]).filter(x=>typeof x==="string"&&x.length>20))];
+      if(tokens.length<2)continue;
+      if(!entriesDue(data,today).length)continue;
+      candidates.push({token:tokens[tokens.length-1]});
+    }
+    if(candidates.length!==1)throw Error("Teste não enviado: esperava exatamente uma conta com vencimento e pelo menos dois dispositivos inscritos; encontradas "+candidates.length+".");
+    const response=await admin.messaging().send({
+      token:candidates[0].token,
+      data:{title:"FinControl Pro — teste no Android",body:"Teste de notificação: seu celular está conectado ao FinControl Pro.",url:"./"},
+      webpush:{headers:{TTL:"300"}}
+    });
+    if(!response)throw Error("O Firebase não confirmou o aceite do teste.");
+    console.log(JSON.stringify({testLatestDevice:true,accepted:1,errors:0,dailyLogUnchanged:true}));
+    return;
+  }
   for(const user of users){
     const ref=user.collection("appData").doc("main");
     const snap=await ref.get();
