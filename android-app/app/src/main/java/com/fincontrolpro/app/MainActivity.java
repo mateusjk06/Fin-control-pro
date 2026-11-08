@@ -118,6 +118,7 @@ public final class MainActivity extends Activity {
     private void configureWebView() {
         WebSettings settings=webView.getSettings();
         settings.setJavaScriptEnabled(true);
+        settings.setUserAgentString(settings.getUserAgentString() + " FinControlProAndroid/1.3");
         settings.setDomStorageEnabled(true);
         // Force a fresh HTML/CSS fetch, without clearing cookies or Firebase local session.
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
@@ -134,8 +135,13 @@ public final class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri=request.getUrl();
-                if(trusted(uri))return false;
                 if(!request.isForMainFrame())return false; // Firebase CDN and API resources still load normally.
+                if("fincontrolpro".equalsIgnoreCase(uri.getScheme()) && "voice".equalsIgnoreCase(uri.getHost())) {
+                    Uri current=Uri.parse(view.getUrl()==null?"":view.getUrl());
+                    if(trusted(current))startVoiceInput();
+                    return true;
+                }
+                if(trusted(uri))return false;
                 openExternal(uri);
                 return true;
             }
