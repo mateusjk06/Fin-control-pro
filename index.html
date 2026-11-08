@@ -565,6 +565,22 @@
                 </div>
             </div>
 
+            <!-- Registro de aportes reais por mês -->
+            <div class="bg-slate-900 border border-emerald-500/20 rounded-xl p-5 space-y-4">
+                <div><h3 class="text-sm font-semibold text-white">Registrar quanto você investiu em cada mês</h3><p class="text-xs text-slate-400 mt-1">Informe o valor efetivamente aplicado. Ele será usado no cronograma no lugar da previsão daquele mês.</p></div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                    <div><label for="inv-record-month" class="block text-xs text-slate-400 mb-1">Mês do aporte</label><input id="inv-record-month" type="month" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white"></div>
+                    <div><label for="inv-record-amount" class="block text-xs text-slate-400 mb-1">Valor investido (R$)</label><input id="inv-record-amount" type="number" min="0" step="0.01" placeholder="Ex.: 500,00" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white"></div>
+                    <button id="btn-save-investment-record" type="button" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg px-4 py-2 text-sm">Salvar aporte do mês</button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="bg-slate-950 rounded-lg p-3"><p class="text-xs text-slate-400">Total registrado</p><p id="inv-record-total" class="text-lg font-bold text-emerald-400">R$ 0,00</p></div>
+                    <div class="bg-slate-950 rounded-lg p-3"><p class="text-xs text-slate-400">Média por mês registrado</p><p id="inv-record-average" class="text-lg font-bold text-white">R$ 0,00</p></div>
+                    <div class="bg-slate-950 rounded-lg p-3"><p class="text-xs text-slate-400">Meses com aporte registrado</p><p id="inv-record-count" class="text-lg font-bold text-cyan-400">0</p></div>
+                </div>
+                <div><h4 class="text-xs font-semibold text-slate-300 mb-2">Histórico de aportes reais</h4><div id="inv-record-list" class="space-y-2 text-xs text-slate-300"><p class="text-slate-500">Nenhum aporte registrado ainda.</p></div><p class="text-[11px] text-slate-500 mt-2">Para corrigir um mês, selecione-o novamente e salve o novo valor.</p></div>
+            </div>
+
             <!-- Investment Chart -->
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
                 <h3 class="text-sm font-semibold text-slate-200 mb-4">Evolução Patrimonial (Investido vs. Juros Compostos)</h3>
@@ -978,6 +994,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 { id: 1, desc: 'Cartão de Crédito', balance: 4500.0, ratePct: 11.5, minPayment: 450.0 },
                 { id: 2, desc: 'Empréstimo Pessoal', balance: 8000.0, ratePct: 2.5, minPayment: 550.0 }
             ],
+            monthlyInvestments: {},
             investmentConfig: {
                 initial: 3000.0,
                 monthly: 1000.0,
@@ -1014,7 +1031,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 income: state.income,
                 bills: state.bills,
                 debts: state.debts,
-                investmentConfig: state.investmentConfig
+                investmentConfig: state.investmentConfig,
+                monthlyInvestments: state.monthlyInvestments
             };
         }
 
@@ -1023,6 +1041,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             if (Number.isFinite(saved.income)) state.income = saved.income;
             if (Array.isArray(saved.bills)) state.bills = saved.bills;
             if (Array.isArray(saved.debts)) state.debts = saved.debts;
+            if (saved.monthlyInvestments && typeof saved.monthlyInvestments === "object" && !Array.isArray(saved.monthlyInvestments)) state.monthlyInvestments = saved.monthlyInvestments;
             if (saved.investmentConfig && typeof saved.investmentConfig === 'object') {
                 state.investmentConfig = { ...state.investmentConfig, ...saved.investmentConfig };
             }
@@ -1032,6 +1051,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             state.income = 0;
             state.bills = [];
             state.debts = [];
+            state.monthlyInvestments = {};
             state.investmentConfig = { initial: 0, monthly: 0, cdiAnnual: 13.6, ratePct: 100, months: 12, useIR: true };
         }
 
@@ -1488,80 +1508,106 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             budgetChart.update();
         }
 
+        function currentInvestmentMonthKey(date = new Date()) {
+            return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
+        }
+
+        function investmentMonthKeyOffset(offset) {
+            const date = new Date();
+            date.setDate(1);
+            date.setMonth(date.getMonth() + offset);
+            return currentInvestmentMonthKey(date);
+        }
+
+        function formatInvestmentMonth(key) {
+            const parts = key.split('-').map(Number);
+            return new Date(parts[0], parts[1] - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        }
+
+        function renderInvestmentAnalysis() {
+            const records = Object.entries(state.monthlyInvestments || {}).map(([month, amount]) => ({ month, amount: Number(amount) }))
+                .filter(item => item.month.length === 7 && item.month[4] === '-' && Number.isFinite(item.amount) && item.amount >= 0)
+                .sort((a, b) => a.month.localeCompare(b.month));
+            const total = records.reduce((sum, item) => sum + item.amount, 0);
+            document.getElementById('inv-record-total').innerText = formatBRL(total);
+            document.getElementById('inv-record-average').innerText = formatBRL(records.length ? total / records.length : 0);
+            document.getElementById('inv-record-count').innerText = String(records.length);
+            const list = document.getElementById('inv-record-list');
+            list.innerHTML = '';
+            if (!records.length) {
+                list.innerHTML = '<p class="text-slate-500">Nenhum aporte registrado ainda.</p>';
+                return;
+            }
+            records.slice().reverse().forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between gap-3 bg-slate-950 rounded-lg px-3 py-2';
+                const month = document.createElement('span');
+                month.className = 'capitalize text-slate-300';
+                month.textContent = formatInvestmentMonth(item.month);
+                const amount = document.createElement('strong');
+                amount.className = 'text-emerald-400';
+                amount.textContent = formatBRL(item.amount);
+                row.append(month, amount);
+                list.appendChild(row);
+            });
+        }
+
         function calculateInvestmentSchedule() {
-            const initial = parseFloat(document.getElementById('inv-initial').value) || 0;
-            const monthly = parseFloat(document.getElementById('inv-monthly').value) || 0;
-            const cdi = parseFloat(document.getElementById('inv-cdi').value) || 13.6;
-            const ratePct = parseFloat(document.getElementById('inv-rate-pct').value) || 120;
-            const monthsCount = parseInt(document.getElementById('inv-months').value) || 8;
-
+            const initial = Math.max(0, parseFloat(document.getElementById('inv-initial').value) || 0);
+            const monthly = Math.max(0, parseFloat(document.getElementById('inv-monthly').value) || 0);
+            const cdi = Math.max(0, parseFloat(document.getElementById('inv-cdi').value) || 13.6);
+            const ratePct = Math.max(0, parseFloat(document.getElementById('inv-rate-pct').value) || 120);
+            const monthsCount = Math.min(60, Math.max(1, parseInt(document.getElementById('inv-months').value, 10) || 8));
             state.investmentConfig = { initial, monthly, cdiAnnual: cdi, ratePct, months: monthsCount, useIR: state.investmentConfig.useIR };
-
             const annualRate = (cdi / 100) * (ratePct / 100);
             const monthlyRate = Math.pow(1 + annualRate, 1 / 12) - 1;
-
-            const monthNames = ["Novembro 2026", "Dezembro 2026", "Janeiro 2027", "Fevereiro 2027", "Março 2027", "Abril 2027", "Maio 2027", "Junho 2027", "Julho 2027", "Agosto 2027", "Setembro 2027", "Outubro 2027"];
-
             let currentBalance = initial;
             let totalInvested = initial;
             let totalInterest = 0;
-
             const tbody = document.getElementById('tbl-schedule-body');
             tbody.innerHTML = '';
-
             const chartLabels = [];
             const chartInvestedData = [];
             const chartBalanceData = [];
-
             for (let i = 0; i < monthsCount; i++) {
-                const monthLabel = monthNames[i % monthNames.length] || `Mês ${i + 1}`;
-                const aporte = (i === 0) ? 0 : monthly;
-                if (i > 0) totalInvested += monthly;
-
+                const monthKey = investmentMonthKeyOffset(i);
+                const monthLabel = formatInvestmentMonth(monthKey);
+                const hasActual = Object.prototype.hasOwnProperty.call(state.monthlyInvestments || {}, monthKey);
+                const aporte = hasActual ? Math.max(0, Number(state.monthlyInvestments[monthKey]) || 0) : (i === 0 ? 0 : monthly);
+                totalInvested += aporte;
                 const startBalance = currentBalance + aporte;
                 const monthInterest = startBalance * monthlyRate;
                 totalInterest += monthInterest;
                 currentBalance = startBalance + monthInterest;
-
                 const days = (i + 1) * 30;
                 let irRate = 0.225;
                 if (days > 180 && days <= 360) irRate = 0.20;
                 else if (days > 360 && days <= 720) irRate = 0.175;
                 else if (days > 720) irRate = 0.15;
-
-                const irTax = state.investmentConfig.useIR ? (totalInterest * irRate) : 0;
+                const irTax = state.investmentConfig.useIR ? totalInterest * irRate : 0;
                 const netBalance = currentBalance - irTax;
-
                 chartLabels.push(monthLabel.split(' ')[0]);
                 chartInvestedData.push(totalInvested);
                 chartBalanceData.push(currentBalance);
-
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-slate-850 transition';
-                tr.innerHTML = `
-                    <td class="py-3 px-4 font-semibold text-slate-200">${monthLabel}</td>
-                    <td class="py-3 px-4">${formatBRL(startBalance - aporte)}</td>
-                    <td class="py-3 px-4 text-emerald-400 font-medium">+${formatBRL(aporte)}</td>
-                    <td class="py-3 px-4 text-cyan-400 font-semibold">+${formatBRL(monthInterest)}</td>
-                    <td class="py-3 px-4"><span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[11px]">${(irRate * 100).toFixed(1)}%</span></td>
-                    <td class="py-3 px-4 font-bold text-white">${formatBRL(currentBalance)}</td>
-                    <td class="py-3 px-4 text-right font-bold text-emerald-400">${formatBRL(netBalance)}</td>
-                `;
+                tr.innerHTML = '<td class="py-3 px-4 font-semibold text-slate-200 capitalize">' + monthLabel + '</td>' +
+                    '<td class="py-3 px-4">' + formatBRL(startBalance - aporte) + '</td>' +
+                    '<td class="py-3 px-4 text-emerald-400 font-medium">+' + formatBRL(aporte) + '<span class="block text-[10px] text-slate-500">' + (hasActual ? 'Realizado' : (i === 0 ? 'Sem registro' : 'Planejado')) + '</span></td>' +
+                    '<td class="py-3 px-4 text-cyan-400 font-semibold">+' + formatBRL(monthInterest) + '</td>' +
+                    '<td class="py-3 px-4"><span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[11px]">' + (irRate * 100).toFixed(1) + '%</span></td>' +
+                    '<td class="py-3 px-4 font-bold text-white">' + formatBRL(currentBalance) + '</td>' +
+                    '<td class="py-3 px-4 text-right font-bold text-emerald-400">' + formatBRL(netBalance) + '</td>';
                 tbody.appendChild(tr);
             }
-
-            const daysFinal = monthsCount * 30;
-            let finalIrRate = 0.225;
-            if (daysFinal > 180) finalIrRate = 0.20;
-
-            const estIrTotal = totalInterest * finalIrRate;
-
+            const finalIrRate = monthsCount * 30 > 180 ? 0.20 : 0.225;
+            const estIrTotal = state.investmentConfig.useIR ? totalInterest * finalIrRate : 0;
             document.getElementById('kpi-total-invested').innerText = formatBRL(totalInvested);
             document.getElementById('kpi-total-interest').innerText = formatBRL(totalInterest);
             document.getElementById('kpi-total-ir').innerText = formatBRL(estIrTotal);
             document.getElementById('kpi-final-balance').innerText = formatBRL(currentBalance - estIrTotal);
-
             updateInvestChart(chartLabels, chartInvestedData, chartBalanceData);
+            renderInvestmentAnalysis();
         }
 
         function initInvestChart() {
@@ -1847,6 +1893,24 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     showToast('Renda mensal atualizada com sucesso!');
                     recalculate();
                 }
+            });
+
+            const recordMonthInput = document.getElementById('inv-record-month');
+            if (recordMonthInput) recordMonthInput.value = currentInvestmentMonthKey();
+            document.getElementById('btn-save-investment-record').addEventListener('click', () => {
+                const month = recordMonthInput.value;
+                const rawAmount = document.getElementById('inv-record-amount').value;
+                const amount = Number(rawAmount);
+                if (month.length !== 7 || month[4] !== '-' || rawAmount.trim() === '' || !Number.isFinite(amount) || amount < 0) {
+                    showToast('Informe um mês e um valor válido para o aporte.');
+                    return;
+                }
+                state.monthlyInvestments = state.monthlyInvestments || {};
+                state.monthlyInvestments[month] = Math.round(amount * 100) / 100;
+                saveAppData();
+                calculateInvestmentSchedule();
+                document.getElementById('inv-record-amount').value = '';
+                showToast('Aporte mensal registrado e cronograma atualizado!');
             });
 
             ['inv-initial', 'inv-monthly', 'inv-cdi', 'inv-rate-pct', 'inv-months'].forEach(id => {
