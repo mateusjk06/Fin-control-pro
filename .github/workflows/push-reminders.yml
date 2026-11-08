@@ -1,0 +1,35 @@
+name: FinControl - notificacoes push gratuitas
+on:
+  schedule:
+    - cron: '13 9 * * *'
+      timezone: 'America/Sao_Paulo'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Somente verificar, sem enviar'
+        type: boolean
+        required: true
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: fincontrol-push-reminders
+  cancel-in-progress: false
+jobs:
+  reminders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependencias
+        working-directory: functions
+        run: npm install --omit=dev --no-package-lock --no-audit --no-fund
+      - name: Verificar vencimentos e enviar push
+        working-directory: functions
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          PUSH_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+        run: node reminders-push.js
