@@ -2066,6 +2066,12 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     const core = await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js');
                     const modularApp = core.getApps().find(app => app.name === 'fincontrol-gemini') ||
                         core.initializeApp(FIREBASE_CONFIG, 'fincontrol-gemini');
+                    // App Check precisa ser inicializado na mesma instância Firebase usada pelo AI Logic.
+                    const appCheckSdk = await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-app-check.js');
+                    appCheckSdk.initializeAppCheck(modularApp, {
+                        provider: new appCheckSdk.ReCaptchaEnterpriseProvider('6LcuWBYuAAAAAKippte8P-vHzwL3ebIHDV-K4A6v'),
+                        isTokenAutoRefreshEnabled: true
+                    });
                     const ai = sdk.getAI(modularApp, { backend: new sdk.GoogleAIBackend() });
                     return sdk.getGenerativeModel(ai, {
                         model: 'gemini-2.5-flash',
