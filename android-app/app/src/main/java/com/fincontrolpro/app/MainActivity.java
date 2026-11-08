@@ -203,7 +203,7 @@ public final class MainActivity extends Activity {
         webView.evaluateJavascript(js, raw -> {
             try {
                 Object decoded = new JSONTokener(raw).nextValue();
-                if (!(decoded instanceof String)) return; // not signed in yet
+                if (!(decoded instanceof String)) { ReminderReceiver.clearSchedule(this); return; }
                 String payload=(String)decoded;
                 if (payload.length()>50000)return;
                 ReminderReceiver.saveSchedule(this,payload);
