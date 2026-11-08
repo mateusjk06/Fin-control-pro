@@ -13,6 +13,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -233,7 +234,7 @@
                       <option value="MXN">🇲🇽 MXN · Peso mexicano</option>
                       <option value="ARS">🇦🇷 ARS · Peso argentino</option>
                     </select>
-                    </div><div class="border-t border-slate-700 pt-3 space-y-2"><h4 class="text-sm font-semibold">Contato e lembretes</h4><label for="settings-phone" class="block text-xs">Celular com DDI</label><input id="settings-phone" type="tel" autocomplete="tel" placeholder="+5516999999999" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm"><label for="settings-whatsapp" class="block text-xs">WhatsApp com DDI</label><input id="settings-whatsapp" type="tel" autocomplete="tel" placeholder="+5516999999999" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm"><label class="flex items-center gap-2 text-xs"><input id="settings-reminders" type="checkbox" checked> Alertar sobre parcelas vencendo hoje</label><label class="flex items-start gap-2 text-xs"><input id="settings-whatsapp-optin" type="checkbox" class="mt-1"> Autorizo receber mensagens automáticas de lembrete pelo WhatsApp no número cadastrado. Posso cancelar a autorização a qualquer momento.</label><button id="settings-save" type="button" class="w-full rounded-lg bg-emerald-700 px-3 py-2 text-xs">Salvar contatos</button><button id="settings-notify" type="button" class="w-full rounded-lg border border-sky-700 px-3 py-2 text-xs text-sky-300">Ativar notificações do navegador</button><button id="settings-whatsapp-open" type="button" class="w-full rounded-lg border border-green-700 px-3 py-2 text-xs text-green-300">Abrir lembrete no WhatsApp</button><p id="settings-reminder-status" aria-live="polite" class="text-[11px] text-amber-300">Alertas do navegador funcionam com o app aberto. Envio no WhatsApp é manual; automação exige integração de serviço.</p></div><div class="border-t border-slate-700 pt-3"><p id="account-email" class="mb-2 break-all text-xs text-slate-400"></p>
+                    </div><div class="border-t border-slate-700 pt-3 space-y-2"><h4 class="text-sm font-semibold">Contato e lembretes</h4><label for="settings-phone" class="block text-xs">Celular com DDI</label><input id="settings-phone" type="tel" autocomplete="tel" placeholder="+5516999999999" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm"><label for="settings-whatsapp" class="block text-xs">WhatsApp com DDI</label><input id="settings-whatsapp" type="tel" autocomplete="tel" placeholder="+5516999999999" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm"><label class="flex items-center gap-2 text-xs"><input id="settings-reminders" type="checkbox" checked> Alertar sobre parcelas vencendo hoje</label><label class="flex items-start gap-2 text-xs"><input id="settings-whatsapp-optin" type="checkbox" class="mt-1"> Autorizo receber mensagens automáticas de lembrete pelo WhatsApp no número cadastrado. Posso cancelar a autorização a qualquer momento.</label><button id="settings-save" type="button" class="w-full rounded-lg bg-emerald-700 px-3 py-2 text-xs">Salvar contatos</button><label class="block text-xs text-slate-300" for="settings-vapid">Chave pública Web Push (VAPID) do Firebase</label><input id="settings-vapid" type="text" autocomplete="off" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs" placeholder="Cole aqui a chave pública VAPID"><button id="settings-notify" type="button" class="w-full rounded-lg border border-sky-700 px-3 py-2 text-xs text-sky-300">Ativar notificações gratuitas no celular</button><button id="settings-push-disable" type="button" class="w-full rounded-lg border border-rose-700 px-3 py-2 text-xs text-rose-300">Desativar notificações neste aparelho</button><button id="settings-whatsapp-open" type="button" class="w-full rounded-lg border border-green-700 px-3 py-2 text-xs text-green-300">Abrir lembrete no WhatsApp</button><p id="settings-reminder-status" aria-live="polite" class="text-[11px] text-amber-300">Alertas do navegador funcionam com o app aberto. Envio no WhatsApp é manual; automação exige integração de serviço.</p></div><div class="border-t border-slate-700 pt-3"><p id="account-email" class="mb-2 break-all text-xs text-slate-400"></p>
                     <button id="btn-logout" type="button" class="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:border-rose-500 hover:text-rose-300">
                         <i class="fa-solid fa-right-from-bracket mr-1"></i>Sair
                     </button></div></div>
@@ -1664,6 +1665,73 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
 
+
+        async function enableFincontrolPush() {
+            if(!currentUser) return showToast('Entre na sua conta antes de ativar notificações.');
+            if(!window.isSecureContext || !('serviceWorker' in navigator) || !('Notification' in window)) {
+                return showToast('Este navegador não permite push. Abra o site por HTTPS; no iPhone, adicione à Tela de Início.');
+            }
+            const vapid=document.getElementById('settings-vapid').value.trim();
+            if(!/^[A-Za-z0-9_-]{60,200}$/.test(vapid))return showToast('Informe a chave pública VAPID gerada no Firebase.');
+            const button=document.getElementById('settings-notify');
+            button.disabled=true;
+            try {
+                const permission=await Notification.requestPermission();
+                if(permission!=='granted')return showToast('Você precisa permitir as notificações no celular.');
+                if(!firebase.messaging.isSupported())return showToast('Notificações push não são compatíveis com este navegador.');
+                const registration=await navigator.serviceWorker.register('./firebase-messaging-sw.js',{scope:'./'});
+                const messaging=firebase.messaging();
+                const token=await messaging.getToken({vapidKey:vapid,serviceWorkerRegistration:registration});
+                if(!token)throw Error('Nenhum token de dispositivo foi obtido.');
+                // Save the public VAPID key locally. The private key is never stored in the browser.
+                localStorage.setItem('fincontrol-public-vapid',vapid);
+                const uid=currentUser.uid;
+                // Use a Firestore transaction to preserve current data and other devices.
+                const doc=db.collection('users').doc(uid).collection('appData').doc('main');
+                await db.runTransaction(async tx=>{
+                    const snap=await tx.get(doc);
+                    if(!snap.exists)throw Error('Dados da conta ainda não estão salvos.');
+                    const saved=snap.data()||{};
+                    const tokens=Array.isArray(saved.pushTokens)?saved.pushTokens:[];
+                    const unique=[...new Set([...tokens,token])].slice(-10);
+                    tx.update(doc,{pushTokens:unique,'contactPreferences.pushOptIn':true});
+                    state.pushTokens=unique;
+                    state.contactPreferences={...(state.contactPreferences||{}),pushOptIn:true};
+                });
+                try {localStorage.setItem(userStorageKey(uid),JSON.stringify(getAppData()));}catch(e){}
+                showToast('Notificações push ativadas para este dispositivo!');
+                const status=document.getElementById('settings-reminder-status');
+                if(status)status.textContent='Dispositivo registrado! Avisos agendados dependem da configuração do GitHub Actions.';
+            }catch(error){
+                console.error('Falha ao ativar push:',error);
+                showToast('Não foi possível ativar push: '+String(error.message||error).slice(0,120));
+            }finally{button.disabled=false;}
+        }
+        async function disableFincontrolPush() {
+            if(!currentUser)return showToast('Entre na sua conta.');
+            try{
+                const vapid=localStorage.getItem('fincontrol-public-vapid')||'';
+                let token='';
+                if(firebase.messaging.isSupported() && vapid){
+                    const sw=await navigator.serviceWorker.getRegistration('./');
+                    if(sw)token=await firebase.messaging().getToken({vapidKey:vapid,serviceWorkerRegistration:sw});
+                }
+                const doc=db.collection('users').doc(currentUser.uid).collection('appData').doc('main');
+                await db.runTransaction(async tx=>{
+                    const snap=await tx.get(doc);
+                    if(!snap.exists)return;
+                    const previous=Array.isArray(snap.data().pushTokens)?snap.data().pushTokens:[];
+                    const updated=previous.filter(t=>t!==token);
+                    tx.update(doc,{pushTokens:updated,...(updated.length?{}:{'contactPreferences.pushOptIn':false})});
+                    state.pushTokens=updated;
+                    if(!updated.length)state.contactPreferences={...state.contactPreferences,pushOptIn:false};
+                });
+                if(token)await firebase.messaging().deleteToken().catch(()=>{});
+                try{localStorage.setItem(userStorageKey(currentUser.uid),JSON.stringify(getAppData()));}catch(e){}
+                showToast('Notificações deste aparelho desativadas.');
+            }catch(error){console.error(error);showToast('Não foi possível desativar as notificações.');}
+        }
+
         function refreshSettingsContacts() {
             const p = state.contactPreferences || {};
             const phone = document.getElementById('settings-phone');
@@ -1672,6 +1740,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             document.getElementById('settings-whatsapp').value = p.whatsapp || '';
             document.getElementById('settings-reminders').checked = p.reminders !== false;
             document.getElementById('settings-whatsapp-optin').checked = p.whatsappOptIn === true;
+            document.getElementById('settings-vapid').value = localStorage.getItem('fincontrol-public-vapid') || '';
         }
         function debtDueToday() {
             const now = new Date();
@@ -1725,13 +1794,14 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 if(!valid(phone)||!valid(whatsapp))return showToast('Informe o telefone com DDI: +5516999999999.');
                 const whatsappOptIn=document.getElementById('settings-whatsapp-optin').checked;
                 if (whatsappOptIn && !whatsapp) return showToast('Cadastre seu WhatsApp antes de autorizar lembretes automáticos.');
-                state.contactPreferences={phone,whatsapp,reminders:document.getElementById('settings-reminders').checked,whatsappOptIn};
+                state.contactPreferences={...state.contactPreferences,phone,whatsapp,reminders:document.getElementById('settings-reminders').checked,whatsappOptIn};
                 saveAppData();showToast('Contatos salvos.');checkDebtDueToday();
             });
             document.getElementById('settings-notify').addEventListener('click',async()=>{
-                if(!('Notification' in window)||!window.isSecureContext)return showToast('Notificações exigem HTTPS e navegador compatível.');
-                try{const r=await Notification.requestPermission();showToast(r==='granted'?'Notificações ativadas.':'Permissão não concedida.');if(r==='granted')checkDebtDueToday();}
-                catch(e){showToast('Não foi possível ativar notificações.');}
+                await enableFincontrolPush();
+            });
+            document.getElementById('settings-push-disable').addEventListener('click',async()=>{
+                await disableFincontrolPush();
             });
             document.getElementById('settings-whatsapp-open').addEventListener('click',()=>{
                 if(!currentUser)return showToast('Entre na conta primeiro.');
@@ -1750,6 +1820,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 currency: state.currency || 'BRL',
                 income: state.income,
                 contactPreferences: {...(state.contactPreferences || {})},
+                pushTokens: Array.isArray(state.pushTokens) ? state.pushTokens : [],
                 monthlyIncomeOverrides: {...(state.monthlyIncomeOverrides || {})},
                 monthlyExtraIncome: JSON.parse(JSON.stringify(state.monthlyExtraIncome || {})),
                 bills: state.bills,
@@ -1766,6 +1837,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         function applyAppData(saved) {
             if (!saved || typeof saved !== 'object') return;
             state.currency = CURRENCIES.includes(saved.currency) ? saved.currency : 'BRL';
+            state.pushTokens = Array.isArray(saved.pushTokens) ? saved.pushTokens : [];
             state.contactPreferences = saved.contactPreferences && typeof saved.contactPreferences === 'object' ? {phone:String(saved.contactPreferences.phone || ''), whatsapp:String(saved.contactPreferences.whatsapp || ''), reminders:saved.contactPreferences.reminders !== false, whatsappOptIn:saved.contactPreferences.whatsappOptIn === true} : {phone:'',whatsapp:'',reminders:true};
             if (Number.isFinite(saved.income)) state.income = saved.income;
             state.monthlyIncomeOverrides = saved.monthlyIncomeOverrides && typeof saved.monthlyIncomeOverrides === 'object' && !Array.isArray(saved.monthlyIncomeOverrides) ? saved.monthlyIncomeOverrides : {};
@@ -1787,6 +1859,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
         function resetStateForNewUser() {
             state.currency = 'BRL';
+            state.pushTokens = [];
             state.contactPreferences = {phone:'',whatsapp:'',reminders:true,whatsappOptIn:false};
             state.income = 0;
             state.monthlyIncomeOverrides = {};
