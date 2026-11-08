@@ -507,10 +507,10 @@
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-4"><p class="text-xs text-slate-400">Investimentos no período</p><p id="hist-investments" class="text-xl font-bold text-violet-400 mt-1">—</p></div>
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-4"><p class="text-xs text-slate-400">Saldo após despesas e aportes</p><p id="hist-net" class="text-xl font-bold text-cyan-400 mt-1">—</p></div>
             </div>
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5"><div class="h-64"><canvas id="chart-history"></canvas></div></div>
+            <div class="bg-slate-900 border border-emerald-700/40 rounded-xl p-5 space-y-3"><h3 class="text-sm font-bold text-emerald-400">Acompanhamento do plano Gemini</h3><p id="hist-gemini-description" class="text-xs text-slate-300"></p><div class="flex flex-wrap items-end gap-3"><div><label for="hist-amort-month" class="block text-xs text-slate-400 mb-1">Mês</label><input id="hist-amort-month" type="month" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white"></div><div><label for="hist-amort-amount" class="block text-xs text-slate-400 mb-1">Amortização extra realizada (R$)</label><input id="hist-amort-amount" type="number" min="0" step="0.01" placeholder="0,00" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white"></div><button id="hist-save-amort" type="button" class="bg-emerald-700 rounded-lg px-4 py-2 text-sm font-semibold text-white">Registrar amortização</button></div><p class="text-[11px] text-amber-300">Somente pagamentos já realizados. O registro não altera o saldo devedor nem realiza pagamentos.</p><p id="hist-gemini-progress" class="text-xs text-slate-300"></p></div><div class="bg-slate-900 border border-slate-800 rounded-xl p-5"><div class="h-64"><canvas id="chart-history"></canvas></div></div>
             <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                 <div class="px-5 py-4 border-b border-slate-800"><h3 class="text-sm font-semibold">Detalhamento mês a mês</h3><p class="text-xs text-slate-400 mt-1">Projeção baseada na renda, contas recorrentes e parcelas cadastradas.</p></div>
-                <div class="overflow-x-auto"><table class="w-full text-xs text-left"><thead class="bg-slate-950 text-slate-400"><tr><th class="p-3">Mês</th><th class="p-3">Receitas</th><th class="p-3">Contas</th><th class="p-3">Parcelas</th><th class="p-3">Investido</th><th class="p-3">Saldo livre</th><th class="p-3">Acumulado</th></tr></thead><tbody id="history-table" class="divide-y divide-slate-800"></tbody></table></div>
+                <div class="overflow-x-auto"><table class="w-full text-xs text-left"><thead class="bg-slate-950 text-slate-400"><tr><th class="p-3">Mês</th><th class="p-3">Receitas</th><th class="p-3">Contas</th><th class="p-3">Parcelas</th><th class="p-3">Investido</th><th class="p-3">Meta investimento</th><th class="p-3">Amortização extra</th><th class="p-3">Meta amortização</th><th class="p-3">Saldo livre</th><th class="p-3">Acumulado</th></tr></thead><tbody id="history-table" class="divide-y divide-slate-800"></tbody></table></div>
             </div>
             <p class="text-[11px] text-amber-300/80">Atenção: meses futuros são projeções, não lançamentos reais. Os resultados dependem dos valores e vencimentos cadastrados.</p>
         </section>
@@ -1295,6 +1295,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             ],
             monthlyInvestments: {},
             aiPayoffPlan: null,
+            monthlyAmortizations: {},
             investmentConfig: {
                 initial: 3000.0,
                 monthly: 1000.0,
@@ -1333,7 +1334,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 debts: state.debts,
                 investmentConfig: state.investmentConfig,
                 monthlyInvestments: state.monthlyInvestments,
-                aiPayoffPlan: state.aiPayoffPlan
+                aiPayoffPlan: state.aiPayoffPlan,
+                monthlyAmortizations: state.monthlyAmortizations
             };
         }
 
@@ -1343,6 +1345,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             if (Array.isArray(saved.bills)) state.bills = saved.bills;
             if (Array.isArray(saved.debts)) state.debts = saved.debts;
             if (saved.aiPayoffPlan && typeof saved.aiPayoffPlan === 'object') state.aiPayoffPlan = saved.aiPayoffPlan;
+            if (saved.monthlyAmortizations && typeof saved.monthlyAmortizations === 'object') state.monthlyAmortizations = saved.monthlyAmortizations;
             if (saved.monthlyInvestments && typeof saved.monthlyInvestments === "object" && !Array.isArray(saved.monthlyInvestments)) state.monthlyInvestments = saved.monthlyInvestments;
             if (saved.investmentConfig && typeof saved.investmentConfig === 'object') {
                 state.investmentConfig = { ...state.investmentConfig, ...saved.investmentConfig };
@@ -1559,6 +1562,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const start = new Date(now.getFullYear(), now.getMonth(), 1);
             const currentKey = currentInvestmentMonthKey(now);
             const rows = [];
+            const payoffPlan = state.aiPayoffPlan;
             let cumulative = 0, incomeTotal = 0, expenseTotal = 0, investmentTotal = 0;
 
             for (let i = 0; i < months; i++) {
@@ -1588,12 +1592,16 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     : (isFuture ? Math.max(0, Number(state.investmentConfig.monthly) || 0) : 0);
                 const initialInvestment = i === 0 ? Math.max(0, Number(state.investmentConfig.initial) || 0) : 0;
                 const investment = monthlyInvestment + initialInvestment;
-                const net = state.income - bills - debtPay - investment;
+                const planActive = payoffPlan && monthKey >= String(payoffPlan.createdAt || '').slice(0, 7);
+                const plannedInvestment = planActive ? Math.max(0, Number(payoffPlan.monthlyInvestment) || 0) : Math.max(0, Number(state.investmentConfig.monthly) || 0);
+                const plannedExtra = planActive ? Math.max(0, Number(payoffPlan.monthlyExtraPayment) || 0) : 0;
+                const actualExtra = Math.max(0, Number((state.monthlyAmortizations || {})[monthKey]) || 0);
+                const net = state.income - bills - debtPay - investment - actualExtra;
                 cumulative += net;
                 incomeTotal += state.income;
                 expenseTotal += bills + debtPay;
                 investmentTotal += investment;
-                rows.push({ key, income: state.income, bills, debtPay, investment, investmentStatus: hasActualInvestment ? 'Realizado' : (isFuture ? 'Planejado' : (initialInvestment ? 'Inclui aporte inicial' : 'Sem registro')), net, cumulative });
+                rows.push({ key, monthKey, income: state.income, bills, debtPay, investment, plannedInvestment, plannedExtra, actualExtra, investmentStatus: hasActualInvestment ? 'Realizado' : (isFuture ? 'Planejado' : (initialInvestment ? 'Inclui aporte inicial' : 'Sem registro')), net, cumulative });
             }
 
             document.getElementById('hist-income').textContent = formatBRL(incomeTotal);
@@ -1605,9 +1613,18 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 '<td class="p-3">' + formatBRL(row.bills) + '</td>' +
                 '<td class="p-3 text-rose-300">' + formatBRL(row.debtPay) + '</td>' +
                 '<td class="p-3 text-violet-300">' + formatBRL(row.investment) + '<span class="block text-[10px] text-slate-500">' + row.investmentStatus + '</span></td>' +
+                '<td class="p-3 text-violet-400">' + formatBRL(row.plannedInvestment) + '</td>' +
+                '<td class="p-3 text-orange-300">' + formatBRL(row.actualExtra) + '</td>' +
+                '<td class="p-3 text-amber-400">' + formatBRL(row.plannedExtra) + '</td>' +
                 '<td class="p-3 font-semibold ' + (row.net < 0 ? 'text-rose-400' : 'text-cyan-300') + '">' + formatBRL(row.net) + '</td>' +
                 '<td class="p-3">' + formatBRL(row.cumulative) + '</td></tr>').join('');
 
+            const description = document.getElementById('hist-gemini-description');
+            const progress = document.getElementById('hist-gemini-progress');
+            if (description && progress) {
+                description.textContent = payoffPlan ? 'Metas mensais: investir ' + formatBRL(payoffPlan.monthlyInvestment) + ' e amortizar ' + formatBRL(payoffPlan.monthlyExtraPayment) + ' por até ' + payoffPlan.months + ' meses.' : 'Nenhum plano Gemini salvo. Você ainda pode registrar amortizações.';
+                progress.textContent = 'No período: investimentos registrados ' + formatBRL(rows.reduce((sum, row) => sum + (row.investmentStatus === 'Realizado' ? row.investment : 0), 0)) + ' | amortizações extras registradas ' + formatBRL(rows.reduce((sum, row) => sum + row.actualExtra, 0)) + '. Projeções não contam como realizadas.';
+            }
             if (historyChart) {
                 historyChart.data.labels = rows.map(row => row.key);
                 historyChart.data.datasets[0].data = rows.map(row => row.income);
@@ -1617,6 +1634,22 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             }
         }
 
+        function initAmortizationTracking() {
+            const month = document.getElementById('hist-amort-month'), amount = document.getElementById('hist-amort-amount'), save = document.getElementById('hist-save-amort');
+            if (!month || !amount || !save) return;
+            month.value = currentInvestmentMonthKey();
+            const load = () => { const value = (state.monthlyAmortizations || {})[month.value]; amount.value = value === undefined ? '' : value; };
+            month.addEventListener('change', load); load();
+            save.addEventListener('click', () => {
+                const value = Number(amount.value);
+                if (!/^\\d{4}-\\d{2}$/.test(month.value) || !amount.value.trim() || !Number.isFinite(value) || value < 0) { alert('Escolha um mês e um valor válido.'); return; }
+                if (!confirm('Você já realizou uma amortização extra de ' + formatBRL(value) + ' em ' + month.value + '? O saldo da dívida não será alterado.')) return;
+                state.monthlyAmortizations ||= {};
+                state.monthlyAmortizations[month.value] = value;
+                recalculate();
+                alert('Amortização registrada para acompanhamento.');
+            });
+        }
         function initHistoryChart() {
             const canvas = document.getElementById('chart-history');
             if (!canvas || typeof Chart === 'undefined') return;
@@ -2387,6 +2420,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             initBudgetChart();
             initInvestChart();
             initHistoryChart();
+            initAmortizationTracking();
             initModals();
             initAlexaSimulator();
             initGeminiSimulator();
