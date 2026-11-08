@@ -1540,6 +1540,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         const db = firebase.firestore();
         let currentUser = null;
         let cloudSaveTimer = null;
+        let cloudUnsubscribe = null;
+        let applyingRemoteSnapshot = false;
         let authMode = 'login';
 
 
@@ -1965,9 +1967,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             }
             // Mantém o resumo Gemini sincronizado com cada registro salvo.
             window.fincontrolRefreshGeminiOverview?.();
-            if (currentUser) {
+            if (currentUser && !applyingRemoteSnapshot) {
                 clearTimeout(cloudSaveTimer);
                 cloudSaveTimer = setTimeout(async () => {
+                    cloudSaveTimer = null;
                     try {
                         await db.collection('users').doc(currentUser.uid).collection('appData').doc('main').set({
                             ...data,
@@ -1984,6 +1987,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         async function loadUserData(user) {
+            if (cloudUnsubscribe) { cloudUnsubscribe(); cloudUnsubscribe = null; }
             currentUser = user;
             const overlay = document.getElementById('auth-overlay');
             document.getElementById('account-email').textContent = user.email || 'Conta conectada';
@@ -2060,6 +2064,28 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             }
             const cloudStatus = document.getElementById('cloud-status');
             if (cloudStatus) cloudStatus.textContent = 'Sincronizado';
+            // Observe mudanças de outros aparelhos sem reenviar o snapshot à nuvem.
+            // Não substitua alterações locais enquanto há salvamento pendente.
+            let initialSnapshot = true;
+            cloudUnsubscribe = db.collection('users').doc(user.uid).collection('appData').doc('main')
+                .onSnapshot(snap => {
+                    if (!currentUser || currentUser.uid !== user.uid || !snap.exists || snap.metadata.hasPendingWrites) return;
+                    if (initialSnapshot) { initialSnapshot = false; return; }
+                    if (cloudSaveTimer || applyingRemoteSnapshot) return;
+                    try {
+                        applyingRemoteSnapshot = true;
+                        applyAppData(snap.data());
+                        syncCurrencyPicker();
+                        refreshSettingsContacts();
+                        const input=document.getElementById('inv-initial');
+                        if(input)input.value=state.investmentConfig.initial;
+                        applyLanguage(activeLanguage);
+                        recalculate();
+                        if(cloudStatus)cloudStatus.textContent='Atualizado em tempo real';
+                    } catch(e) {
+                        console.error('Não foi possível aplicar atualização remota:',e);
+                    } finally { applyingRemoteSnapshot = false; }
+                }, error => console.error('Falha no monitoramento do Firestore:',error));
         }
 
         function showAuthError(message) {
@@ -3944,6 +3970,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     await loadUserData(user);
                     window.fincontrolOpenVoiceAssistant?.();
                 } else {
+                    if(cloudUnsubscribe){cloudUnsubscribe();cloudUnsubscribe=null;}
+                    clearTimeout(cloudSaveTimer);cloudSaveTimer=null;
                     currentUser = null;
                     resetStateForNewUser();
                     try { applyLanguage(activeLanguage); } catch (error) { console.error('Idioma apos sair:', error); }
