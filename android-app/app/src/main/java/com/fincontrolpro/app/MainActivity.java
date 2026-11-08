@@ -9,6 +9,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
+import android.speech.RecognitionListener;
 import java.util.ArrayList;
 import java.util.Locale;
 import org.json.JSONObject;
@@ -35,6 +37,9 @@ public final class MainActivity extends Activity {
     private static final String PATH = "/Fin-control-pro/";
     private static final int AUDIO_REQUEST = 3001;
     private static final int SPEECH_REQUEST = 3002;
+    private static final int NATIVE_AUDIO_REQUEST = 3003;
+    private SpeechRecognizer speechRecognizer;
+    private Button voiceButton;
     private WebView webView;
     private TextView offline;
     private Button retry;
@@ -54,7 +59,7 @@ public final class MainActivity extends Activity {
         progress.setIndeterminate(true);
         root.addView(progress, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 3));
         // Reconhecimento de voz nativo caso a WebView não tenha Web Speech API.
-        Button voiceButton = new Button(this);
+        voiceButton = new Button(this);
         voiceButton.setText("🎙 Falar com assistente");
         voiceButton.setAllCaps(false);
         voiceButton.setOnClickListener(v -> startVoiceInput());
@@ -163,15 +168,109 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void voiceInfo(String message) {
+        android.widget.Toast.makeText(this,message,android.widget.Toast.LENGTH_LONG).show();
+    }
+
+    private void resetVoiceButton() {
+        if(voiceButton!=null){
+            voiceButton.setEnabled(true);
+            voiceButton.setText("🎙 Falar com assistente");
+        }
+    }
+
+    private void stopNativeRecognition() {
+        if(speechRecognizer!=null){
+            speechRecognizer.destroy();
+            speechRecognizer=null;
+        }
+        resetVoiceButton();
+    }
+
     private void startVoiceInput() {
+        if(Build.VERSION.SDK_INT >= 23 &&
+            checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},NATIVE_AUDIO_REQUEST);
+            return;
+        }
+        if(!SpeechRecognizer.isRecognitionAvailable(this)) {
+            voiceInfo("Reconhecimento nativo indisponível. Tentando assistente de voz do Android.");
+            startVoiceIntentFallback();
+            return;
+        }
+        stopNativeRecognition();
+        try {
+            speechRecognizer=SpeechRecognizer.createSpeechRecognizer(this);
+            speechRecognizer.setRecognitionListener(new RecognitionListener(){
+                @Override public void onReadyForSpeech(Bundle params){
+                    if(voiceButton!=null)voiceButton.setText("🎙 Ouvindo...");
+                }
+                @Override public void onBeginningOfSpeech(){}
+                @Override public void onRmsChanged(float rmsdB){}
+                @Override public void onBufferReceived(byte[] buffer){}
+                @Override public void onEndOfSpeech(){
+                    if(voiceButton!=null)voiceButton.setText("⏳ Processando voz...");
+                }
+                @Override public void onError(int error){
+                    stopNativeRecognition();
+                    if(error==SpeechRecognizer.ERROR_NO_MATCH || error==SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
+                        voiceInfo("Não consegui entender sua voz. Toque e tente falar novamente.");
+                    else if(error==SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS)
+                        voiceInfo("Microfone bloqueado. Autorize nas configurações do Android.");
+                    else {
+                        voiceInfo("Serviço de voz indisponível (erro "+error+"). Tentando alternativa...");
+                        startVoiceIntentFallback();
+                    }
+                }
+                @Override public void onResults(Bundle results){
+                    ArrayList<String> candidates=results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                    stopNativeRecognition();
+                    if(candidates!=null && !candidates.isEmpty())fillVoiceCommand(candidates.get(0));
+                    else voiceInfo("Nenhuma fala reconhecida. Tente novamente.");
+                }
+                @Override public void onPartialResults(Bundle partialResults){}
+                @Override public void onEvent(int eventType,Bundle params){}
+            });
+            Intent intent=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"pt-BR");
+            intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,false);
+            voiceButton.setEnabled(false);
+            voiceButton.setText("🎙 Preparando microfone...");
+            speechRecognizer.startListening(intent);
+        }catch(Exception error){
+            stopNativeRecognition();
+            voiceInfo("O microfone não iniciou. Tentando o reconhecimento de voz alternativo.");
+            startVoiceIntentFallback();
+        }
+    }
+
+    private void startVoiceIntentFallback() {
         Intent intent=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR");
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"pt-BR");
         intent.putExtra(RecognizerIntent.EXTRA_PROMPT,"Diga seu comando financeiro");
         try { startActivityForResult(intent,SPEECH_REQUEST); }
-        catch(ActivityNotFoundException ignored){
-            android.widget.Toast.makeText(this,"Reconhecimento de voz indisponível neste aparelho.",android.widget.Toast.LENGTH_LONG).show();
+        catch(ActivityNotFoundException error){
+            voiceInfo("Não há serviço de reconhecimento de voz disponível. Atualize o Google app e o Speech Services by Google.");
+        }catch(Exception error){
+            voiceInfo("Falha ao abrir o reconhecimento de voz: "+String.valueOf(error.getMessage()));
         }
+    }
+
+    private void fillVoiceCommand(String transcript) {
+        if(transcript==null || transcript.trim().isEmpty())return;
+        transcript=transcript.trim();
+        if(transcript.length()>500)transcript=transcript.substring(0,500);
+        Uri page=Uri.parse(webView.getUrl()==null?"":webView.getUrl());
+        if(!trusted(page)){voiceInfo("Entre no FinControl Pro para usar comandos por voz.");return;}
+        String js="(function(){const tab=document.querySelector('[data-tab=gemini]');if(tab)tab.click();"+
+                "const field=document.getElementById('gemini-user-input');"+
+                "if(field){field.value="+JSONObject.quote(transcript)+";field.dispatchEvent(new Event('input',{bubbles:true}));field.focus();return true;}return false;})()";
+        webView.evaluateJavascript(js, result -> {
+            if("true".equals(result))voiceInfo("Comando reconhecido! Confira o texto e toque em Enviar.");
+            else voiceInfo("Não encontrei o campo Gemini. Abra o assistente e tente novamente.");
+        });
     }
 
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
@@ -179,15 +278,7 @@ public final class MainActivity extends Activity {
         if(requestCode!=SPEECH_REQUEST || resultCode!=RESULT_OK || data==null)return;
         ArrayList<String> results=data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
         if(results==null || results.isEmpty() || results.get(0)==null)return;
-        String transcript=results.get(0).trim();
-        if(transcript.isEmpty())return;
-        if(transcript.length()>500)transcript=transcript.substring(0,500);
-        Uri page=Uri.parse(webView.getUrl()==null?"":webView.getUrl());
-        if(!trusted(page))return;
-        String js="(function(){const tab=document.querySelector('[data-tab=gemini]');if(tab)tab.click();"+
-                "const field=document.getElementById('gemini-user-input');"+
-                "if(field){field.value="+JSONObject.quote(transcript)+";field.dispatchEvent(new Event('input',{bubbles:true}));field.focus();}})();";
-        webView.evaluateJavascript(js,null); // Apenas rascunho; o usuário decide quando enviar.
+        fillVoiceCommand(results.get(0));
     }
 
     private void openExternal(Uri uri) {
@@ -201,6 +292,11 @@ public final class MainActivity extends Activity {
 
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results) {
         super.onRequestPermissionsResult(code,permissions,results);
+        if(code == NATIVE_AUDIO_REQUEST){
+            if(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED)startVoiceInput();
+            else voiceInfo("Permita o microfone para usar os comandos de voz.");
+            return;
+        }
         if(code == AUDIO_REQUEST && pendingAudioRequest!=null) {
             if(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED)
                 pendingAudioRequest.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
@@ -221,6 +317,7 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy(){
+        stopNativeRecognition();
         if(pendingAudioRequest!=null){pendingAudioRequest.deny();pendingAudioRequest=null;}
         if(webView!=null)webView.destroy();
         super.onDestroy();
