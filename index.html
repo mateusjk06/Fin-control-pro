@@ -3770,6 +3770,13 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             let listening=false;
             micButton.addEventListener('click',()=>{
                 if(!currentUser)return showToast('Entre na sua conta antes de usar o assistente.');
+                // Dentro do APK, encaminha o toque ao reconhecimento nativo do Android.
+                // O WebView não oferece a Web Speech API de forma confiável (erro not-allowed).
+                if(navigator.userAgent.includes('FinControlProAndroid/')) {
+                    voiceStatus.textContent='Abrindo o reconhecimento de voz do Android...';
+                    window.location.href='fincontrolpro://voice?lang='+encodeURIComponent(({pt:'pt-BR',it:'it-IT',en:'en-US',es:'es-ES'})[activeLanguage]||'pt-BR');
+                    return;
+                }
                 if(!SpeechApi){
                     voiceStatus.textContent='Reconhecimento de voz não disponível neste navegador. Você pode usar o microfone do teclado do Android.';
                     return;
