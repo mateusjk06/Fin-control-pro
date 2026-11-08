@@ -1262,7 +1262,11 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const dt = new Date(start.getFullYear(), start.getMonth() + i, 1);
                 const monthKey = currentInvestmentMonthKey(dt);
                 const key = dt.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
-                const bills = (Array.isArray(state.bills) ? state.bills : []).reduce((sum, bill) => sum + (billOccursInMonth(bill, dt) ? billAmountForAnalysis(bill) : 0), 0);
+                const billList = Array.isArray(state.bills) ? state.bills : [];
+                // No mês atual, espelha o total da tela inicial; nos meses futuros, considera apenas contas recorrentes/previstas.
+                const bills = i === 0
+                    ? billList.reduce((sum, bill) => sum + billAmountForAnalysis(bill), 0)
+                    : billList.reduce((sum, bill) => sum + (billOccursInMonth(bill, dt) ? billAmountForAnalysis(bill) : 0), 0);
                 let debtPay = 0;
                 state.debts.forEach(debt => {
                     const first = debt.startDate || (start.getFullYear() + '-' + String(start.getMonth() + 1).padStart(2, '0') + '-01');
