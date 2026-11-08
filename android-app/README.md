@@ -9,6 +9,15 @@ https://mateusjk06.github.io/Fin-control-pro/
 - As alterações são gravadas na mesma conta do Firestore e o site observa atualizações de outros aparelhos em tempo real, desde que estejam conectados. Edições simultâneas da mesma conta ainda podem sobrescrever dados; evite alterar os mesmos registros em dois aparelhos ao mesmo tempo.
 - Você precisa de internet; esta versão não oferece modo offline garantido.
 
+## Notificações nativas no Android (versão 1.4)
+- O APK pede a permissão **Notificações** no Android 13 ou superior.
+- Depois do login, o app copia os próximos vencimentos cadastrados para um agendamento local do próprio Android.
+- Há lembretes **na véspera e no dia** para contas pendentes e parcelas de dívidas com data registrada.
+- A verificação é feita quando o app está aberto e diariamente em segundo plano, aproximadamente às 9h. O Android pode atrasar o alarme por economia de bateria; não é garantia de horário exato.
+- Abra o aplicativo conectado à internet periodicamente para sincronizar novos lançamentos e alterações. Quando estiver fechado, os avisos usam apenas o último cronograma sincronizado no aparelho, sem consultar o Firestore em segundo plano.
+- Esta funcionalidade é **local**, não utiliza FCM Push e não depende de deixar o Chrome aberto. Com o logout ou lembretes desativados, o cronograma local é limpo quando o app sincronizar essa condição.
+- Após a instalação, em Configurações do aparelho > Aplicativos > FinControl Pro > Notificações, confirme que os avisos estão permitidos.
+
 ## Gerar APK no GitHub Actions
 1. Abra o repositório GitHub e a aba **Actions**.
 2. Selecione **FinControl Pro - gerar APK Android** e clique em **Run workflow**.
