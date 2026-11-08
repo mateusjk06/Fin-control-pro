@@ -8,6 +8,10 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.speech.RecognizerIntent;
+import java.util.ArrayList;
+import java.util.Locale;
+import org.json.JSONObject;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
@@ -30,6 +34,7 @@ public final class MainActivity extends Activity {
     private static final String HOST = "mateusjk06.github.io";
     private static final String PATH = "/Fin-control-pro/";
     private static final int AUDIO_REQUEST = 3001;
+    private static final int SPEECH_REQUEST = 3002;
     private WebView webView;
     private TextView offline;
     private Button retry;
@@ -48,6 +53,12 @@ public final class MainActivity extends Activity {
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setIndeterminate(true);
         root.addView(progress, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 3));
+        // Reconhecimento de voz nativo caso a WebView não tenha Web Speech API.
+        Button voiceButton = new Button(this);
+        voiceButton.setText("🎙 Falar com assistente");
+        voiceButton.setAllCaps(false);
+        voiceButton.setOnClickListener(v -> startVoiceInput());
+        root.addView(voiceButton, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 48));
 
         FrameLayout frame = new FrameLayout(this);
         root.addView(frame, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
@@ -150,6 +161,33 @@ public final class MainActivity extends Activity {
                 if(pendingAudioRequest==request)pendingAudioRequest=null;
             }
         });
+    }
+
+    private void startVoiceInput() {
+        Intent intent=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR");
+        intent.putExtra(RecognizerIntent.EXTRA_PROMPT,"Diga seu comando financeiro");
+        try { startActivityForResult(intent,SPEECH_REQUEST); }
+        catch(ActivityNotFoundException ignored){
+            android.widget.Toast.makeText(this,"Reconhecimento de voz indisponível neste aparelho.",android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
+        super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode!=SPEECH_REQUEST || resultCode!=RESULT_OK || data==null)return;
+        ArrayList<String> results=data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+        if(results==null || results.isEmpty() || results.get(0)==null)return;
+        String transcript=results.get(0).trim();
+        if(transcript.isEmpty())return;
+        if(transcript.length()>500)transcript=transcript.substring(0,500);
+        Uri page=Uri.parse(webView.getUrl()==null?"":webView.getUrl());
+        if(!trusted(page))return;
+        String js="(function(){const tab=document.querySelector('[data-tab=\\\"gemini\\\"]');if(tab)tab.click();"+
+                "const field=document.getElementById('gemini-user-input');"+
+                "if(field){field.value="+JSONObject.quote(transcript)+";field.dispatchEvent(new Event('input',{bubbles:true}));field.focus();}})();";
+        webView.evaluateJavascript(js,null); // Apenas rascunho; o usuário decide quando enviar.
     }
 
     private void openExternal(Uri uri) {
