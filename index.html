@@ -934,7 +934,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
     <!-- Modal for installment debt -->
     <div id="modal-debt" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4 overflow-y-auto">
       <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-5 space-y-4 my-auto">
-        <h3 class="text-base font-bold text-white">Cadastrar dívida parcelada</h3>
+        <h3 id="debt-modal-title" class="text-base font-bold text-white">Cadastrar dívida parcelada</h3>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <label class="sm:col-span-2 text-slate-400">Descrição<input id="debt-desc" type="text" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white" placeholder="Ex.: Geladeira, empréstimo, cartão"></label>
           <label class="text-slate-400">Valor total (R$)<input id="debt-total" type="number" min="0.01" step="0.01" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white" placeholder="3000"></label>
@@ -991,6 +991,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         let budgetChart = null;
         let investChart = null;
         let historyChart = null;
+        let editingDebtId = null;
         const STORAGE_KEY = 'fincontrol-pro-data-v2';
         const FIREBASE_CONFIG = {
             apiKey: "AIzaSyCBYEIKR647HUc4wITL4hltdLD0jRMJ_Pk",
@@ -1413,6 +1414,24 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             recalculate();
         }
 
+        function editDebt(id) {
+            const debt = state.debts.find(item => Number(item.id) === Number(id));
+            if (!debt) { showToast('Não foi possível localizar essa dívida.'); return; }
+            editingDebtId = debt.id;
+            document.getElementById('debt-modal-title').innerText = 'Editar dívida';
+            document.getElementById('debt-save').innerText = 'Salvar alterações';
+            document.getElementById('debt-desc').value = debt.desc || '';
+            document.getElementById('debt-total').value = debt.total || debt.balance || 0;
+            document.getElementById('debt-count').value = debt.installmentCount || 12;
+            document.getElementById('debt-installment').value = debt.installment || debt.minPayment || '';
+            document.getElementById('debt-rate').value = debt.ratePct || 0;
+            document.getElementById('debt-start').value = debt.startDate || new Date().toLocaleDateString('en-CA');
+            document.getElementById('debt-paid').value = debt.paidCount || 0;
+            const modal = document.getElementById('modal-debt');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
         function renderDebtsList() {
             const container = document.getElementById('debts-list-container');
             container.innerHTML = '';
@@ -1433,6 +1452,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                             <p class="text-[10px] text-slate-500 uppercase">Parcela Mínima</p>
                             <p class="font-bold text-xs text-slate-200">${formatBRL(d.minPayment)}/mês</p>
                         </div>
+                        <button type="button" onclick="editDebt(${Number(d.id)})" class="px-3 py-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-pen-to-square mr-1"></i> Editar</button>
                     </div>
                 `;
                 container.appendChild(card);
@@ -1725,6 +1745,13 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const modalDebt = document.getElementById('modal-debt');
 
             document.getElementById('btn-add-debt').addEventListener('click', () => {
+                editingDebtId = null;
+                document.getElementById('debt-modal-title').innerText = 'Cadastrar dívida parcelada';
+                document.getElementById('debt-save').innerText = 'Salvar dívida';
+                ['debt-desc', 'debt-total', 'debt-installment'].forEach(id => document.getElementById(id).value = '');
+                document.getElementById('debt-count').value = '12';
+                document.getElementById('debt-rate').value = '0';
+                document.getElementById('debt-paid').value = '0';
                 document.getElementById('debt-start').value = new Date().toLocaleDateString('en-CA');
                 modalDebt.classList.remove('hidden');
                 modalDebt.classList.add('flex');
@@ -1758,11 +1785,22 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     paid: index < paid
                 }));
                 const remaining = schedule.slice(paid).reduce((sum, item) => sum + item.value, 0);
-                state.debts.push({
-                    id: Date.now(), desc, balance: remaining, ratePct: rate,
+                const debtData = {
+                    desc, balance: remaining, ratePct: rate,
                     minPayment: installment, installment, installmentCount: count,
                     paidCount: paid, startDate, total, schedule
-                });
+                };
+                if (editingDebtId !== null) {
+                    const debtIndex = state.debts.findIndex(item => Number(item.id) === Number(editingDebtId));
+                    if (debtIndex !== -1) state.debts[debtIndex] = { ...state.debts[debtIndex], ...debtData };
+                    showToast('Dívida atualizada com sucesso!');
+                } else {
+                    state.debts.push({ id: Date.now(), ...debtData });
+                    showToast('Dívida cadastrada com sucesso!');
+                }
+                editingDebtId = null;
+                document.getElementById('debt-modal-title').innerText = 'Cadastrar dívida parcelada';
+                document.getElementById('debt-save').innerText = 'Salvar dívida';
                 modalDebt.classList.add('hidden');
                 modalDebt.classList.remove('flex');
                 ['debt-desc', 'debt-total', 'debt-installment'].forEach(id => document.getElementById(id).value = '');
