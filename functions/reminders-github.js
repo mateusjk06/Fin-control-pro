@@ -26,7 +26,18 @@ function addMonths(iso, offset) {
 function entriesDue(data, today) {
   const results = [];
   (Array.isArray(data.bills) ? data.bills : []).forEach((bill, index) => {
-    if (!bill || bill.paid || String(bill.date || "").slice(0, 10) !== today) return;
+    if (!bill || bill.paid) return;
+    const first = String(bill.date || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(first)) return;
+    const [fy, fm] = first.split("-").map(Number);
+    const [ty, tm] = today.split("-").map(Number);
+    const offset = (ty - fy) * 12 + tm - fm;
+    if (offset < 0) return;
+    const repeat = bill.repeat || "monthly";
+    if (repeat === "once" && offset !== 0) return;
+    if (repeat === "limited" && offset >= Math.max(1, Number(bill.durationMonths) || 1)) return;
+    const due = addMonths(first, offset);
+    if (due !== today) return;
     results.push({key: "bill:" + (bill.id ?? index), kind: "Conta", title: String(bill.desc || "Conta"), amount: Number(bill.val) || 0});
   });
   (Array.isArray(data.debts) ? data.debts : []).forEach((debt, debtIndex) => {
