@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">\n    <meta name="theme-color" content="#080f1c">
     <title>FinControl Pro + Alexa & Gemini AI</title>
     <link rel="manifest" href="./manifest.webmanifest">
     <!-- Tailwind CSS CDN -->
@@ -163,6 +163,119 @@
             #nav-tabs .tab-btn i { font-size: 16px; }
             .tab-content .p-5 { padding: 12px; }
             .tab-content .text-2xl { font-size: 1.3rem; }
+        }
+
+        /* FinControl Pro · mobile-first Android visual refinement (2026-11) */
+        @media (max-width: 767px) {
+            :root { color-scheme: dark; }
+            html { -webkit-text-size-adjust: 100%; }
+            body {
+                background: radial-gradient(ellipse 120% 38% at 50% -10%, rgba(16,185,129,.13), transparent 75%), #080f1c;
+                padding-bottom: calc(104px + env(safe-area-inset-bottom)) !important;
+                -webkit-tap-highlight-color: transparent;
+            }
+            header { background: rgba(9,17,30,.96); border-color: rgba(148,163,184,.12); }
+            header > .max-w-7xl > .flex { min-height: 65px; height: auto; padding-block: 9px; gap: 8px; }
+            header h1 { font-size: 17px !important; letter-spacing: -.45px; }
+            header h1 + p { display: none; }
+            header .fa-wallet { font-size: 18px !important; }
+            header .fa-wallet:before { vertical-align: middle; }
+            #account-controls { gap: 5px; min-width: 0; }
+            #btn-settings {
+                border: 1px solid rgba(148,163,184,.18);
+                background: #1b293c;
+                min-width: 44px;
+                min-height: 44px;
+                font-size: 0;
+                border-radius: 14px;
+                padding: 0 12px;
+            }
+            #btn-settings i { font-size: 17px; margin: 0; }
+            #settings-panel { max-height: min(76dvh, 630px); border-radius: 22px; }
+            header .bg-slate-900\\/80 {
+                background: rgba(12,21,36,.98);
+                box-shadow: 0 -12px 35px rgba(0,0,0,.4);
+                border-top: 1px solid rgba(148,163,184,.12);
+                padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+            }
+            #nav-tabs {
+                display: flex;
+                overflow-x: auto;
+                overflow-y: hidden;
+                justify-content: flex-start;
+                gap: 4px;
+                max-width: none;
+                scroll-snap-type: x proximity;
+                scrollbar-width: none;
+                padding: 2px 0;
+            }
+            #nav-tabs::-webkit-scrollbar { display: none; }
+            #nav-tabs .tab-btn {
+                flex: 0 0 calc((100% - 16px) / 5);
+                min-width: 65px;
+                max-width: 105px;
+                min-height: 62px;
+                padding: 9px 4px 7px;
+                border-radius: 17px;
+                font-size: 10px !important;
+                font-weight: 600;
+                color: #94a3b8;
+                scroll-snap-align: center;
+                transition: background .18s ease, color .18s ease, transform .18s ease;
+            }
+            #nav-tabs .tab-btn i { font-size: 20px !important; line-height: 23px; }
+            #nav-tabs .tab-btn span {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                width: 100%;
+            }
+            #nav-tabs .tab-btn.active {
+                color: #6ee7b7;
+                background: linear-gradient(160deg,rgba(16,185,129,.2),rgba(16,185,129,.07));
+                box-shadow: inset 0 0 0 1px rgba(52,211,153,.16);
+            }
+            #nav-tabs .tab-btn:active { transform: scale(.96); }
+            main.max-w-7xl { padding: 18px 14px 28px; }
+            .tab-content { gap: 16px; }
+            .tab-content > .grid { gap: 12px; }
+            .tab-content .bg-slate-900.border,
+            .tab-content .bg-slate-900.rounded-xl {
+                background: linear-gradient(160deg,#172437,#111c2e);
+                border: 1px solid rgba(148,163,184,.11);
+                border-radius: 21px;
+                box-shadow: 0 5px 22px rgba(0,0,0,.13);
+            }
+            #tab-dashboard > .grid:first-child {
+                grid-template-columns: repeat(2,minmax(0,1fr));
+                gap: 10px;
+            }
+            #tab-dashboard > .grid:first-child > div { padding: 15px 12px; border-radius: 20px; }
+            #tab-dashboard > .grid:first-child h3 {
+                font-size: clamp(16px,4.8vw,22px) !important;
+                line-height: 1.25;
+                letter-spacing: -.55px;
+                overflow-wrap: anywhere;
+            }
+            #tab-dashboard > .grid:first-child p { font-size: 11px; line-height: 1.4; }
+            #tab-dashboard > .grid:first-child .uppercase { letter-spacing: .3px; }
+            .tab-content h2 { letter-spacing: -.3px; font-size: 19px !important; }
+            .tab-content .p-5 { padding: 16px; }
+            .tab-content button:not(.tab-btn) { min-height: 44px; border-radius: 12px; }
+            .tab-content input, .tab-content select, .tab-content textarea {
+                min-height: 44px;
+                border-radius: 12px;
+                font-size: 16px !important;
+            }
+            .tab-content .overflow-x-auto { border-radius: 13px; }
+            #toast-notification { bottom: calc(99px + env(safe-area-inset-bottom)); border-radius: 16px; }
+            #auth-overlay > div { border-radius: 26px; padding: 24px 20px; }
+            #auth-overlay input, #auth-overlay button { min-height: 48px; border-radius: 14px; }
+            .fixed.inset-0 > .bg-slate-900 { max-height: 90dvh; overflow-y: auto; border-radius: 24px; }
+        }
+        @media (max-width: 370px) {
+            #tab-dashboard > .grid:first-child { grid-template-columns: 1fr; }
+            #nav-tabs .tab-btn { flex-basis: 72px; }
         }
     </style>
 </head>
