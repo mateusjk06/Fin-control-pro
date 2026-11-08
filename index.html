@@ -2074,7 +2074,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     });
                     const ai = sdk.getAI(modularApp, { backend: new sdk.GoogleAIBackend() });
                     return sdk.getGenerativeModel(ai, {
-                        model: 'gemini-2.5-flash',
+                        model: 'gemini-3-flash-preview',
                         systemInstruction: 'Você é um assistente financeiro em português brasileiro. Use somente os dados fornecidos. Não invente saldos, juros, preços ou rendimentos. Não execute operações. Para solicitar mudanças, responda com JSON puro no formato {"message":"resumo curto","action":{"type":"add_bill|edit_bill|set_bill_paid|add_debt|edit_debt|set_income|record_investment","id":numero opcional,"data":{...}}}. Para consultas, retorne texto normal. Uma única ação por resposta. Para editar contas: desc,cat,val,date,paid; dívidas: desc,balance,ratePct,minPayment; renda: value; investimentos: month (YYYY-MM),amount. Nunca proponha apagar dados ou transferir dinheiro. Para cronogramas, apenas aconselhe, sem alterar dados automaticamente.'
                     });
                 })().catch(error => { aiModelPromise = null; throw error; });
