@@ -213,7 +213,7 @@
                     </div>
                 </div>
 
-                <div id="account-controls" class="flex items-center gap-3">
+                <div id="account-controls" class="relative flex items-center gap-3"><button id="btn-settings" type="button" aria-expanded="false" class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white"><i class="fa-solid fa-gear mr-1"></i>Configurações</button><div id="settings-panel" class="hidden absolute right-0 top-full z-[70] mt-2 w-[min(90vw,360px)] max-h-[80vh] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-xl space-y-3"><h3 class="font-bold">Configurações da conta</h3><div class="flex flex-col gap-2">
                     <label for="language-select" class="sr-only">Idioma</label>
                     <select id="language-select" aria-label="Idioma" class="rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-xs text-slate-200">
                         <option value="pt">🇧🇷 Português</option>
@@ -233,10 +233,10 @@
                       <option value="MXN">🇲🇽 MXN · Peso mexicano</option>
                       <option value="ARS">🇦🇷 ARS · Peso argentino</option>
                     </select>
-                    <span id="account-email" class="hidden max-w-[160px] truncate text-xs text-slate-400 sm:inline"></span>
+                    </div><div class="border-t border-slate-700 pt-3 space-y-2"><h4 class="text-sm font-semibold">Contato e lembretes</h4><label for="settings-phone" class="block text-xs">Celular com DDI</label><input id="settings-phone" type="tel" autocomplete="tel" placeholder="+5516999999999" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm"><label for="settings-whatsapp" class="block text-xs">WhatsApp com DDI</label><input id="settings-whatsapp" type="tel" autocomplete="tel" placeholder="+5516999999999" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm"><label class="flex items-center gap-2 text-xs"><input id="settings-reminders" type="checkbox" checked> Alertar sobre parcelas vencendo hoje</label><button id="settings-save" type="button" class="w-full rounded-lg bg-emerald-700 px-3 py-2 text-xs">Salvar contatos</button><button id="settings-notify" type="button" class="w-full rounded-lg border border-sky-700 px-3 py-2 text-xs text-sky-300">Ativar notificações do navegador</button><button id="settings-whatsapp-open" type="button" class="w-full rounded-lg border border-green-700 px-3 py-2 text-xs text-green-300">Abrir lembrete no WhatsApp</button><p id="settings-reminder-status" aria-live="polite" class="text-[11px] text-amber-300">Alertas do navegador funcionam com o app aberto. Envio no WhatsApp é manual; automação exige integração de serviço.</p></div><div class="border-t border-slate-700 pt-3"><p id="account-email" class="mb-2 break-all text-xs text-slate-400"></p>
                     <button id="btn-logout" type="button" class="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:border-rose-500 hover:text-rose-300">
                         <i class="fa-solid fa-right-from-bracket mr-1"></i>Sair
-                    </button>
+                    </button></div></div>
                 </div>
                 <!-- Quick Summary Badges -->
                 <div class="hidden md:flex items-center space-x-6 text-sm">
@@ -1663,10 +1663,90 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             syncCurrencyPicker();
         }
 
+
+        function refreshSettingsContacts() {
+            const p = state.contactPreferences || {};
+            const phone = document.getElementById('settings-phone');
+            if (!phone) return;
+            phone.value = p.phone || '';
+            document.getElementById('settings-whatsapp').value = p.whatsapp || '';
+            document.getElementById('settings-reminders').checked = p.reminders !== false;
+        }
+        function debtDueToday() {
+            const now = new Date();
+            const today = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+            const matches = [];
+            for (const debt of state.debts || []) {
+                if (!(Number(debt.balance) > 0) || !Array.isArray(debt.schedule)) continue;
+                const first = debt.schedule.findIndex(p => !p.paid);
+                if (first < 0) continue;
+                debt.schedule.forEach((p,i) => {
+                    if (p.paid) return;
+                    const date = debt.nextDueDate ? addMonths(debt.nextDueDate,i-first) : p.date;
+                    if (date === today) matches.push({key:String(debt.id)+':'+i, name:String(debt.desc || 'Dívida'),value:Number(p.value ?? debt.minPayment)||0});
+                });
+            }
+            return {today,matches};
+        }
+        function dueTodayMessage(items) {
+            return 'FinControl Pro — parcelas vencendo hoje:\n' + items.map(x => '• '+x.name+': '+formatBRL(x.value)).join('\n') + '\nConfira suas dívidas pendentes no aplicativo.';
+        }
+        function checkDebtDueToday() {
+            if (!currentUser || state.contactPreferences?.reminders === false) return;
+            const {today,matches} = debtDueToday();
+            const status = document.getElementById('settings-reminder-status');
+            if (status) status.textContent = matches.length ? matches.length+' parcela(s) vencem hoje. Abra o lembrete no WhatsApp para enviar manualmente.' : 'Nenhuma parcela vence hoje. Notificações do navegador exigem o aplicativo aberto; WhatsApp requer envio manual.';
+            if (!matches.length) return;
+            const storageKey = 'fincontrol-reminder:'+currentUser.uid+':'+today;
+            let sent=[];try {sent=JSON.parse(localStorage.getItem(storageKey)||'[]');}catch(e){}
+            const pending=matches.filter(x=>!sent.includes(x.key));
+            if (!pending.length) return;
+            if ('Notification' in window && Notification.permission === 'granted') {
+                try {new Notification('FinControl Pro — vencimentos hoje',{body:dueTodayMessage(pending)});}catch(e){showToast('Há parcelas vencendo hoje.');}
+            } else {showToast('Atenção: há parcelas vencendo hoje.');}
+            try {localStorage.setItem(storageKey,JSON.stringify([...new Set([...sent,...pending.map(x=>x.key)])]));}catch(e){}
+        }
+        function initAccountSettings() {
+            const btn=document.getElementById('btn-settings'),panel=document.getElementById('settings-panel');
+            const close=()=>{panel.classList.add('hidden');btn.setAttribute('aria-expanded','false');};
+            btn.addEventListener('click',()=>{
+                const open=panel.classList.contains('hidden');panel.classList.toggle('hidden',!open);
+                btn.setAttribute('aria-expanded',String(open));
+                if(open){refreshSettingsContacts();checkDebtDueToday();}
+            });
+            document.addEventListener('click',e=>{if(!document.getElementById('account-controls').contains(e.target))close();});
+            document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
+            document.getElementById('settings-save').addEventListener('click',()=>{
+                if(!currentUser)return showToast('Entre na conta para salvar.');
+                const phone=document.getElementById('settings-phone').value.trim().replace(/[\s()-]/g,'');
+                const whatsapp=document.getElementById('settings-whatsapp').value.trim().replace(/[\s()-]/g,'');
+                const valid=v=>!v||/^\+[1-9]\d{7,14}$/.test(v);
+                if(!valid(phone)||!valid(whatsapp))return showToast('Informe o telefone com DDI: +5516999999999.');
+                state.contactPreferences={phone,whatsapp,reminders:document.getElementById('settings-reminders').checked};
+                saveAppData();showToast('Contatos salvos.');checkDebtDueToday();
+            });
+            document.getElementById('settings-notify').addEventListener('click',async()=>{
+                if(!('Notification' in window)||!window.isSecureContext)return showToast('Notificações exigem HTTPS e navegador compatível.');
+                try{const r=await Notification.requestPermission();showToast(r==='granted'?'Notificações ativadas.':'Permissão não concedida.');if(r==='granted')checkDebtDueToday();}
+                catch(e){showToast('Não foi possível ativar notificações.');}
+            });
+            document.getElementById('settings-whatsapp-open').addEventListener('click',()=>{
+                if(!currentUser)return showToast('Entre na conta primeiro.');
+                const number=String(state.contactPreferences?.whatsapp||'').replace(/\D/g,'');
+                if(!/^\d{8,15}$/.test(number))return showToast('Cadastre e salve seu WhatsApp com DDI.');
+                const items=debtDueToday().matches;
+                if(!items.length)return showToast('Não há dívidas vencendo hoje.');
+                window.open('https://wa.me/'+number+'?text='+encodeURIComponent(dueTodayMessage(items)),'_blank','noopener,noreferrer');
+            });
+            document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkDebtDueToday();});
+            setInterval(()=>{if(!document.hidden)checkDebtDueToday();},60000);
+        }
+
         function getAppData() {
             return {
                 currency: state.currency || 'BRL',
                 income: state.income,
+                contactPreferences: {...(state.contactPreferences || {})},
                 monthlyIncomeOverrides: {...(state.monthlyIncomeOverrides || {})},
                 monthlyExtraIncome: JSON.parse(JSON.stringify(state.monthlyExtraIncome || {})),
                 bills: state.bills,
@@ -1683,6 +1763,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         function applyAppData(saved) {
             if (!saved || typeof saved !== 'object') return;
             state.currency = CURRENCIES.includes(saved.currency) ? saved.currency : 'BRL';
+            state.contactPreferences = saved.contactPreferences && typeof saved.contactPreferences === 'object' ? {phone:String(saved.contactPreferences.phone || ''), whatsapp:String(saved.contactPreferences.whatsapp || ''), reminders:saved.contactPreferences.reminders !== false} : {phone:'',whatsapp:'',reminders:true};
             if (Number.isFinite(saved.income)) state.income = saved.income;
             state.monthlyIncomeOverrides = saved.monthlyIncomeOverrides && typeof saved.monthlyIncomeOverrides === 'object' && !Array.isArray(saved.monthlyIncomeOverrides) ? saved.monthlyIncomeOverrides : {};
             state.monthlyExtraIncome = saved.monthlyExtraIncome && typeof saved.monthlyExtraIncome === 'object' && !Array.isArray(saved.monthlyExtraIncome) ? saved.monthlyExtraIncome : {};
@@ -1703,6 +1784,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
         function resetStateForNewUser() {
             state.currency = 'BRL';
+            state.contactPreferences = {phone:'',whatsapp:'',reminders:true};
             state.income = 0;
             state.monthlyIncomeOverrides = {};
             state.monthlyExtraIncome = {};
@@ -1887,6 +1969,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             }
             overlay.classList.add('hidden');
             syncCurrencyPicker();
+            refreshSettingsContacts();
+            checkDebtDueToday();
             // A moeda e carregada de forma assincrona do Firebase. O idioma ja
             // podia ter sido aplicado antes com BRL; atualizar TODOS os rotulos.
             try { applyLanguage(activeLanguage); } catch (error) {
@@ -3712,6 +3796,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             }
             try { initLanguageSelector(); } catch (error) { console.error('Falha na tradução:', error); }
             try { initCurrencySelector(); } catch (error) { console.error('Falha na seleção de moeda:', error); }
+            try { initAccountSettings(); } catch (error) { console.error('Falha nas configurações:', error); }
             // Registra o observador antes de módulos secundários: erros em gráficos/IA
             // não devem impedir que usuários existentes consigam entrar.
             auth.onAuthStateChanged(async (user) => {
@@ -3722,6 +3807,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     resetStateForNewUser();
                     try { applyLanguage(activeLanguage); } catch (error) { console.error('Idioma apos sair:', error); }
                     document.getElementById('account-email').textContent = '';
+                    refreshSettingsContacts();
                     document.getElementById('auth-overlay').classList.remove('hidden');
                     try { recalculate(); } catch (error) { console.error('Erro ao atualizar tela:', error); }
                 }
