@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FinControl Pro</string>
+    <string name="loading">Carregando FinControl Pro…</string>
+    <string name="offline">Sem conexão. Confira sua internet e toque em Tentar novamente.</string>
+    <string name="retry">Tentar novamente</string>
+</resources>
