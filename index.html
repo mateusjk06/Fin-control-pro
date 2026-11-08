@@ -1647,6 +1647,83 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             state.investmentConfig = { initial: 0, monthly: 0, cdiAnnual: 13.6, ratePct: 100, months: 12, useIR: true };
         }
 
+
+        // Renda fixa recorrente + ajustes pontuais + extras independentes por mês.
+        const INCOME_TEXT = {
+            pt: {base:'Renda fixa salva!',month:'Renda deste mês salva!',clear:'A renda fixa voltará a valer neste mês.',extra:'Ganho extra salvo!',updated:'Ganho extra atualizado!',removed:'Ganho extra excluído.',invalid:'Informe um valor válido, maior ou igual a zero.',invalidExtra:'Informe descrição e valor extra positivo.',invalidMonth:'Selecione um mês válido.',confirmRemove:'Excluir o ganho extra "{desc}" de {amount}?',confirmMonth:'Remover o ajuste da renda principal deste mês?',edit:'Editar',remove:'Excluir',editSave:'Salvar alteração',add:'Adicionar ganho extra',empty:'Nenhum ganho extra neste mês.',breakdown:'Principal: {base} • Extras: {extra}',current:'Principal: {base} • Extras: {extra}'},
+            it: {base:'Reddito fisso salvato!',month:'Reddito del mese salvato!',clear:'Questo mese userà nuovamente il reddito fisso.',extra:'Entrata extra registrata!',updated:'Entrata extra aggiornata!',removed:'Entrata extra eliminata.',invalid:'Inserisci un importo valido maggiore o uguale a zero.',invalidExtra:'Inserisci descrizione e importo extra positivo.',invalidMonth:'Seleziona un mese valido.',confirmRemove:'Eliminare l’entrata extra "{desc}" di {amount}?',confirmMonth:'Rimuovere la modifica al reddito principale di questo mese?',edit:'Modifica',remove:'Elimina',editSave:'Salva modifica',add:'Aggiungi entrata extra',empty:'Nessuna entrata extra questo mese.',breakdown:'Principale: {base} • Extra: {extra}',current:'Principale: {base} • Extra: {extra}'},
+            en: {base:'Recurring income saved!',month:'Monthly income saved!',clear:'This month will use recurring income again.',extra:'Extra income saved!',updated:'Extra income updated!',removed:'Extra income deleted.',invalid:'Enter a valid non-negative amount.',invalidExtra:'Enter a description and positive extra amount.',invalidMonth:'Select a valid month.',confirmRemove:'Delete extra income "{desc}" of {amount}?',confirmMonth:'Remove this month’s main income adjustment?',edit:'Edit',remove:'Delete',editSave:'Save change',add:'Add extra income',empty:'No extra income this month.',breakdown:'Main: {base} • Extra: {extra}',current:'Main: {base} • Extra: {extra}'},
+            es: {base:'¡Ingreso fijo guardado!',month:'¡Ingreso del mes guardado!',clear:'Este mes volverá a utilizar el ingreso fijo.',extra:'¡Ingreso extra registrado!',updated:'¡Ingreso extra actualizado!',removed:'Ingreso extra eliminado.',invalid:'Introduce un importe válido no negativo.',invalidExtra:'Introduce descripción e importe extra positivo.',invalidMonth:'Selecciona un mes válido.',confirmRemove:'¿Eliminar el ingreso extra "{desc}" de {amount}?',confirmMonth:'¿Eliminar el ajuste del ingreso principal de este mes?',edit:'Editar',remove:'Eliminar',editSave:'Guardar cambio',add:'Añadir ingreso extra',empty:'Ningún ingreso extra este mes.',breakdown:'Principal: {base} • Extras: {extra}',current:'Principal: {base} • Extras: {extra}'}
+        };
+        const incomeText = name => (INCOME_TEXT[activeLanguage] || INCOME_TEXT.pt)[name];
+        function validIncomeMonth(month) { return /^(19|20|21)\d{2}-(0[1-9]|1[0-2])$/.test(month); }
+        function monthlyIncomeParts(month) {
+            const values=state.monthlyIncomeOverrides || {};
+            const hasOverride=Object.prototype.hasOwnProperty.call(values,month)
+                && Number.isFinite(Number(values[month])) && Number(values[month])>=0;
+            const main=hasOverride ? Number(values[month]) : Math.max(0,Number(state.income)||0);
+            const list=Array.isArray(state.monthlyExtraIncome?.[month]) ? state.monthlyExtraIncome[month] : [];
+            const extras=list.reduce((sum,entry)=>sum+(Number.isFinite(Number(entry.amount))?Math.max(0,Number(entry.amount)):0),0);
+            return {main,extras,total:Math.round((main+extras+Number.EPSILON)*100)/100,hasOverride};
+        }
+        let editingExtraIncomeId=null;
+        function cancelExtraIncomeEdit() {
+            editingExtraIncomeId=null;
+            const desc=document.getElementById('inp-extra-income-desc');
+            const amount=document.getElementById('inp-extra-income-amount');
+            if(desc)desc.value='';
+            if(amount)amount.value='';
+            const cancel=document.getElementById('btn-cancel-extra-income-edit');
+            if(cancel)cancel.classList.add('hidden');
+            const button=document.getElementById('btn-save-extra-income');
+            if(button)button.textContent=incomeText('add');
+        }
+        function refreshCurrentIncomeBreakdown() {
+            const info=monthlyIncomeParts(currentInvestmentMonthKey());
+            const el=document.getElementById('income-breakdown-current');
+            if(el) el.textContent=incomeText('current').replace('{base}',formatBRL(info.main)).replace('{extra}',formatBRL(info.extras));
+        }
+        function refreshIncomeManager() {
+            const monthElement=document.getElementById('inp-income-month');
+            if(!monthElement)return;
+            if(!validIncomeMonth(monthElement.value))monthElement.value=currentInvestmentMonthKey();
+            const month=monthElement.value;
+            const info=monthlyIncomeParts(month);
+            document.getElementById('inp-new-income').value=state.income;
+            document.getElementById('inp-income-adjust').value=info.hasOverride?state.monthlyIncomeOverrides[month]:'';
+            document.getElementById('income-month-total').textContent=formatBRL(info.total);
+            document.getElementById('income-month-breakdown').textContent=incomeText('breakdown').replace('{base}',formatBRL(info.main)).replace('{extra}',formatBRL(info.extras));
+            const list=document.getElementById('income-extras-list');list.replaceChildren();
+            const extras=Array.isArray(state.monthlyExtraIncome?.[month])?state.monthlyExtraIncome[month]:[];
+            if(!extras.length){
+                const empty=document.createElement('p');empty.className='text-slate-500';empty.textContent=incomeText('empty');list.appendChild(empty);
+            }
+            extras.forEach(entry=>{
+                const row=document.createElement('div');row.className='flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-950 p-2';
+                const desc=document.createElement('span');desc.textContent=String(entry.description||'');
+                const amount=document.createElement('strong');amount.className='text-emerald-400';amount.textContent=formatBRL(entry.amount);
+                const detail=document.createElement('div');detail.className='flex flex-wrap items-center gap-2';detail.append(desc,amount);
+                const actions=document.createElement('div');actions.className='flex gap-2';
+                const edit=document.createElement('button');edit.type='button';edit.className='rounded-lg border border-sky-500/40 px-2 py-1 text-sky-300';edit.textContent=incomeText('edit');
+                edit.addEventListener('click',()=>{
+                    editingExtraIncomeId=entry.id;
+                    document.getElementById('inp-extra-income-desc').value=entry.description;
+                    document.getElementById('inp-extra-income-amount').value=entry.amount;
+                    document.getElementById('btn-save-extra-income').textContent=incomeText('editSave');
+                    document.getElementById('btn-cancel-extra-income-edit').classList.remove('hidden');
+                });
+                const remove=document.createElement('button');remove.type='button';remove.className='rounded-lg border border-rose-500/40 px-2 py-1 text-rose-300';remove.textContent=incomeText('remove');
+                remove.addEventListener('click',()=>{
+                    const question=incomeText('confirmRemove').replace('{desc}',String(entry.description||'')).replace('{amount}',formatBRL(entry.amount));
+                    if(!window.confirm(question))return;
+                    state.monthlyExtraIncome[month]=(state.monthlyExtraIncome[month]||[]).filter(x=>String(x.id)!==String(entry.id));
+                    cancelExtraIncomeEdit();recalculate();refreshIncomeManager();showToast(incomeText('removed'));
+                });
+                actions.append(edit,remove);row.append(detail,actions);list.appendChild(row);
+            });
+            document.getElementById('btn-save-extra-income').textContent=incomeText(editingExtraIncomeId===null?'add':'editSave');
+        }
+
         function userStorageKey(uid) { return STORAGE_KEY + ':' + uid; }
 
         function saveAppData() {
@@ -3195,22 +3272,57 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 recalculate();
             });
 
-            // Income Modal
-            document.getElementById('btn-edit-income').addEventListener('click', () => {
-                document.getElementById('inp-new-income').value = state.income;
-                modalIncome.classList.remove('hidden');
+            // Renda fixa é recorrente. Ajustes e extras são registrados por mês.
+            const incomeMonthInput=document.getElementById('inp-income-month');
+            incomeMonthInput.value=currentInvestmentMonthKey();
+            document.getElementById('btn-edit-income').addEventListener('click',()=>{
+                incomeMonthInput.value=currentInvestmentMonthKey();
+                cancelExtraIncomeEdit();refreshIncomeManager();
+                modalIncome.classList.remove('hidden');modalIncome.classList.add('flex');
             });
-            document.getElementById('btn-close-modal-income').addEventListener('click', () => {
-                modalIncome.classList.add('hidden');
+            document.getElementById('btn-close-modal-income').addEventListener('click',()=>{
+                modalIncome.classList.add('hidden');modalIncome.classList.remove('flex');cancelExtraIncomeEdit();
             });
-            document.getElementById('btn-save-income').addEventListener('click', () => {
-                const newInc = parseFloat(document.getElementById('inp-new-income').value);
-                if (newInc && !isNaN(newInc)) {
-                    state.income = newInc;
-                    modalIncome.classList.add('hidden');
-                    showToast('Renda mensal atualizada com sucesso!');
-                    recalculate();
-                }
+            incomeMonthInput.addEventListener('change',()=>{cancelExtraIncomeEdit();refreshIncomeManager();});
+            document.getElementById('btn-save-income').addEventListener('click',()=>{
+                const raw=document.getElementById('inp-new-income').value.trim(),value=Number(raw);
+                if(raw===''||!Number.isFinite(value)||value<0){showToast(incomeText('invalid'));return;}
+                state.income=Math.round((value+Number.EPSILON)*100)/100;
+                recalculate();refreshIncomeManager();showToast(incomeText('base'));
+            });
+            document.getElementById('btn-save-income-adjust').addEventListener('click',()=>{
+                const month=incomeMonthInput.value,raw=document.getElementById('inp-income-adjust').value.trim(),value=Number(raw);
+                if(!validIncomeMonth(month)){showToast(incomeText('invalidMonth'));return;}
+                if(raw===''||!Number.isFinite(value)||value<0){showToast(incomeText('invalid'));return;}
+                state.monthlyIncomeOverrides[month]=Math.round((value+Number.EPSILON)*100)/100;
+                recalculate();refreshIncomeManager();showToast(incomeText('month'));
+            });
+            document.getElementById('btn-clear-income-adjust').addEventListener('click',()=>{
+                const month=incomeMonthInput.value;
+                if(!validIncomeMonth(month)){showToast(incomeText('invalidMonth'));return;}
+                if(!Object.prototype.hasOwnProperty.call(state.monthlyIncomeOverrides||{},month))return;
+                if(!window.confirm(incomeText('confirmMonth')))return;
+                delete state.monthlyIncomeOverrides[month];
+                recalculate();refreshIncomeManager();showToast(incomeText('clear'));
+            });
+            document.getElementById('btn-cancel-extra-income-edit').addEventListener('click',cancelExtraIncomeEdit);
+            document.getElementById('btn-save-extra-income').addEventListener('click',()=>{
+                const month=incomeMonthInput.value,desc=document.getElementById('inp-extra-income-desc').value.trim();
+                const raw=document.getElementById('inp-extra-income-amount').value.trim(),value=Number(raw);
+                if(!validIncomeMonth(month)){showToast(incomeText('invalidMonth'));return;}
+                if(!desc||raw===''||!Number.isFinite(value)||value<=0){showToast(incomeText('invalidExtra'));return;}
+                const amount=Math.round((value+Number.EPSILON)*100)/100;
+                if(amount<=0){showToast(incomeText('invalidExtra'));return;}
+                const current=Array.isArray(state.monthlyExtraIncome[month])?state.monthlyExtraIncome[month]:[];
+                const edit=editingExtraIncomeId!==null;
+                if(edit){
+                    const item=current.find(row=>String(row.id)===String(editingExtraIncomeId));
+                    if(!item){cancelExtraIncomeEdit();refreshIncomeManager();return;}
+                    Object.assign(item,{description:desc,amount});
+                }else current.push({id:Date.now()+'-'+Math.random().toString(36).slice(2,9),description:desc,amount});
+                state.monthlyExtraIncome[month]=current;
+                cancelExtraIncomeEdit();recalculate();refreshIncomeManager();
+                showToast(incomeText(edit?'updated':'extra'));
             });
 
             const recordMonthInput = document.getElementById('inv-record-month');
