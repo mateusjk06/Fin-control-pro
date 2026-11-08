@@ -986,7 +986,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
           <label class="text-slate-400">Primeiro vencimento<input id="debt-start" type="date" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
           <label class="text-slate-400">Parcelas já pagas<input id="debt-paid" type="number" min="0" step="1" value="0" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
         </div>
-        <p class="text-[11px] text-slate-400">Se informar o valor da parcela, ele será usado no cronograma. Se deixar vazio, o sistema calcula uma parcela estimada com juros mensais.</p>
+        <p id="debt-modal-help" class="text-[11px] text-slate-400">Se informar o valor da parcela, ele será usado no cronograma. Se deixar vazio, o sistema calcula uma parcela estimada com juros mensais.</p>
         <div class="flex justify-end gap-2"><button id="debt-cancel" class="px-4 py-2 bg-slate-800 rounded-lg text-xs text-white">Cancelar</button><button id="debt-save" class="px-4 py-2 bg-rose-600 rounded-lg text-xs font-semibold text-white">Salvar dívida</button></div>
       </div>
     </div>
@@ -1347,6 +1347,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             }
             translateLanguageNode(document.body);
             refreshBillCategoryLabels();
+            refreshDebtModalLocale();
             syncCurrencyPicker();
             localizeGeminiCodeSamples(activeLanguage);
             const picker = document.getElementById('language-select');
@@ -2239,6 +2240,39 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             recalculate();
         }
 
+
+        // Etiquetas de dividas: idioma apenas na interface; calculos e dados intactos.
+        const debtModalLocale = {
+            pt:{title:'Cadastrar dívida parcelada',edit:'Editar dívida',desc:'Descrição',total:'Valor total ({symbol})',count:'Quantidade de parcelas',installment:'Valor da parcela ({symbol})',rate:'Juros ao mês (%)',start:'Primeiro vencimento',paid:'Parcelas já pagas',help:'Se informar o valor da parcela, ele será usado no cronograma. Se deixar vazio, o sistema calcula uma parcela estimada com juros mensais.',example:'Ex.: Geladeira, empréstimo, cartão',auto:'Calcular automaticamente',cancel:'Cancelar',save:'Salvar dívida',saveEdit:'Salvar alterações',invalid:'Confira a descrição, o valor, as parcelas, os juros e o vencimento.',created:'Dívida cadastrada com sucesso!',updated:'Dívida atualizada com sucesso!'},
+            it:{title:'Registra un debito a rate',edit:'Modifica debito',desc:'Descrizione',total:'Importo totale ({symbol})',count:'Numero di rate',installment:'Importo della rata ({symbol})',rate:'Interesse mensile (%)',start:'Prima scadenza',paid:'Rate già pagate',help:'Se inserisci l’importo della rata, sarà usato nel piano. Se lasci il campo vuoto, il sistema calcolerà una rata stimata con interessi mensili.',example:'Es.: frigorifero, prestito, carta',auto:'Calcola automaticamente',cancel:'Annulla',save:'Salva debito',saveEdit:'Salva modifiche',invalid:'Controlla descrizione, importo, rate, interessi e scadenza.',created:'Debito registrato con successo!',updated:'Debito aggiornato con successo!'},
+            en:{title:'Add installment debt',edit:'Edit debt',desc:'Description',total:'Total amount ({symbol})',count:'Number of installments',installment:'Installment amount ({symbol})',rate:'Monthly interest (%)',start:'First due date',paid:'Installments already paid',help:'If you enter an installment amount, it will be used in the schedule. Leave blank to calculate an estimate with monthly interest.',example:'E.g., fridge, loan, card',auto:'Calculate automatically',cancel:'Cancel',save:'Save debt',saveEdit:'Save changes',invalid:'Check the description, amount, installments, interest rate and due date.',created:'Debt added successfully!',updated:'Debt updated successfully!'},
+            es:{title:'Registrar deuda a plazos',edit:'Editar deuda',desc:'Descripción',total:'Importe total ({symbol})',count:'Número de cuotas',installment:'Importe de la cuota ({symbol})',rate:'Interés mensual (%)',start:'Primer vencimiento',paid:'Cuotas ya pagadas',help:'Si indicas el importe de la cuota, se usará en el calendario. Si lo dejas vacío, se calculará una cuota estimada con intereses mensuales.',example:'Ej.: nevera, préstamo, tarjeta',auto:'Calcular automáticamente',cancel:'Cancelar',save:'Guardar deuda',saveEdit:'Guardar cambios',invalid:'Comprueba descripción, importe, cuotas, intereses y vencimiento.',created:'¡Deuda registrada!',updated:'¡Deuda actualizada!'}
+        };
+        function debtLocaleText(k) { return (debtModalLocale[activeLanguage] || debtModalLocale.pt)[k]; }
+        function refreshDebtModalLocale() {
+            const modal = document.getElementById('modal-debt');
+            if (!modal) return;
+            const labels = {
+                'debt-desc':'desc','debt-total':'total','debt-count':'count',
+                'debt-installment':'installment','debt-rate':'rate',
+                'debt-start':'start','debt-paid':'paid'
+            };
+            const symbol = CURRENCY_SYMBOLS[state.currency] || 'R$';
+            for (const [id,key] of Object.entries(labels)) {
+                const el = document.getElementById(id);
+                const node = el?.closest('label')?.firstChild;
+                if (node && node.nodeType === 3) node.nodeValue = debtLocaleText(key).replace('{symbol}',symbol);
+            }
+            const editing = editingDebtId !== null;
+            document.getElementById('debt-modal-title').textContent = debtLocaleText(editing ? 'edit' : 'title');
+            document.getElementById('debt-save').textContent = debtLocaleText(editing ? 'saveEdit' : 'save');
+            document.getElementById('debt-cancel').textContent = debtLocaleText('cancel');
+            document.getElementById('debt-desc').placeholder = debtLocaleText('example');
+            document.getElementById('debt-installment').placeholder = debtLocaleText('auto');
+            const info = document.getElementById('debt-modal-help');
+            if (info) info.textContent = debtLocaleText('help');
+        }
+
         function editDebt(id) {
             const debt = state.debts.find(item => Number(item.id) === Number(id));
             if (!debt) { showToast('Não foi possível localizar essa dívida.'); return; }
@@ -2252,6 +2286,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             document.getElementById('debt-rate').value = debt.ratePct || 0;
             document.getElementById('debt-start').value = debt.startDate || new Date().toLocaleDateString('en-CA');
             document.getElementById('debt-paid').value = debt.paidCount || 0;
+            refreshDebtModalLocale();
             const modal = document.getElementById('modal-debt');
             modal.classList.remove('hidden');
             modal.classList.add('flex');
@@ -2876,6 +2911,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 document.getElementById('debt-rate').value = '0';
                 document.getElementById('debt-paid').value = '0';
                 document.getElementById('debt-start').value = new Date().toLocaleDateString('en-CA');
+                refreshDebtModalLocale();
                 modalDebt.classList.remove('hidden');
                 modalDebt.classList.add('flex');
             });
@@ -2893,7 +2929,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const paid = Math.floor(Number(document.getElementById('debt-paid').value) || 0);
 
                 if (!desc || !(total > 0) || !(count > 0) || count > 600 || !startDate || rate < 0 || paid < 0 || paid > count) {
-                    showToast('Confira a descrição, o valor, as parcelas, os juros e o vencimento.');
+                    showToast(debtLocaleText('invalid'));
                     return;
                 }
                 const monthlyRate = rate / 100;
@@ -2916,10 +2952,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 if (editingDebtId !== null) {
                     const debtIndex = state.debts.findIndex(item => Number(item.id) === Number(editingDebtId));
                     if (debtIndex !== -1) state.debts[debtIndex] = { ...state.debts[debtIndex], ...debtData };
-                    showToast('Dívida atualizada com sucesso!');
+                    showToast(debtLocaleText('updated'));
                 } else {
                     state.debts.push({ id: Date.now(), ...debtData });
-                    showToast('Dívida cadastrada com sucesso!');
+                    showToast(debtLocaleText('created'));
                 }
                 editingDebtId = null;
                 document.getElementById('debt-modal-title').innerText = 'Cadastrar dívida parcelada';
@@ -2930,7 +2966,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 document.getElementById('debt-count').value = '12';
                 document.getElementById('debt-rate').value = '0';
                 document.getElementById('debt-paid').value = '0';
-                showToast('Dívida cadastrada com sucesso!');
+                refreshDebtModalLocale();
                 recalculate();
             });
 
