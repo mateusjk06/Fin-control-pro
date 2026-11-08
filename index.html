@@ -1428,6 +1428,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 }
                 localStorage.setItem(userStorageKey(user.uid), JSON.stringify(getAppData()));
                 recalculate();
+                // Executa após os dados da conta estarem disponíveis, sem bloquear o login.
+                window.fincontrolRunAutoGeminiAnalysis?.();
                 const cloudStatus = document.getElementById('cloud-status');
                 if (cloudStatus) cloudStatus.textContent = 'Sincronizado';
             } catch (error) {
@@ -2367,6 +2369,44 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     addMessage('ai','Não foi possível consultar o Gemini: ' + (error?.message || 'erro desconhecido') + '. Nenhum dado foi alterado.');
                 } finally { busy = false; btnSend.disabled = false; }
             }
+            // Diagnóstico automático apenas de leitura, uma vez por abertura de sessão.
+            // Nenhuma resposta automática é interpretada como comando ou aplicada ao Firestore.
+            let lastAutomaticUid = null;
+            const autoPrefKey = 'fincontrol_gemini_auto_analysis';
+            const autoControls = document.createElement('label');
+            autoControls.className = 'flex items-center gap-2 text-xs text-slate-300 mt-3 mb-2';
+            const autoCheckbox = document.createElement('input');
+            autoCheckbox.type = 'checkbox';
+            autoCheckbox.checked = localStorage.getItem(autoPrefKey) !== 'off';
+            autoCheckbox.className = 'accent-purple-500';
+            autoControls.append(autoCheckbox, document.createTextNode('Analisar automaticamente ao entrar (somente leitura)'));
+            chatHistory.parentElement.appendChild(autoControls);
+            autoCheckbox.addEventListener('change', () => {
+                localStorage.setItem(autoPrefKey, autoCheckbox.checked ? 'on' : 'off');
+                if (autoCheckbox.checked && currentUser) window.fincontrolRunAutoGeminiAnalysis?.();
+            });
+            window.fincontrolRunAutoGeminiAnalysis = async () => {
+                if (!currentUser || !autoCheckbox.checked || busy || lastAutomaticUid === currentUser.uid) return;
+                const uid = currentUser.uid;
+                lastAutomaticUid = uid;
+                const status = addMessage('ai', 'Diagnóstico automático: analisando seus dados (sem alterar registros)...');
+                try {
+                    const model = await getModel();
+                    if (!currentUser || currentUser.uid !== uid) { status.remove(); return; }
+                    const prompt = 'Faça um diagnóstico financeiro breve e objetivo em português brasileiro com base EXCLUSIVAMENTE nos dados JSON seguintes. Informe renda, contas, dívidas, metas de investimento e amortização, diferenças entre realizado e planejado, riscos e até três sugestões. Não assuma despesas variáveis ausentes como zero real. Não recomende com certeza investimentos sem avaliar riscos e taxas. Responda somente com texto, nunca JSON de ação. Não altere nenhum dado. Dados: ' + JSON.stringify(snapshot());
+                    const result = await model.generateContent(prompt);
+                    if (!currentUser || currentUser.uid !== uid) { status.remove(); return; }
+                    status.remove();
+                    const answer = result.response.text().trim();
+                    addMessage('ai', 'Diagnóstico automático (somente leitura):\\n' + answer);
+                    history.push({role:'assistente',text:answer});
+                } catch (error) {
+                    status.remove();
+                    console.error('Diagnóstico automático Gemini:', error);
+                    addMessage('ai', 'Não foi possível executar o diagnóstico automático. Seus dados não foram alterados. Você pode tentar novamente na aba Gemini.');
+                    lastAutomaticUid = null;
+                }
+            };
             // Atalhos de planejamento: o Gemini apenas propõe; validateAction e
             // window.confirm continuam obrigatórios antes de qualquer gravação.
             const actionBar = document.createElement('div');
