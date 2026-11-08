@@ -511,7 +511,7 @@
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-4"><p class="text-xs text-slate-400">Total realmente investido (aportes registrados)</p><p id="hist-actual-investments" class="text-xl font-bold text-emerald-400 mt-1">—</p></div>
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-4"><p class="text-xs text-slate-400">Total planejado para investir</p><p id="hist-planned-investments" class="text-xl font-bold text-violet-400 mt-1">—</p></div>
             </div>
-            <div class="bg-slate-900 border border-emerald-700/40 rounded-xl p-5 space-y-3"><h3 class="text-sm font-bold text-emerald-400">Acompanhamento do plano Gemini</h3><p id="hist-gemini-description" class="text-xs text-slate-300"></p><div class="flex flex-wrap items-end gap-3"><div><label for="hist-amort-month" class="block text-xs text-slate-400 mb-1">Mês</label><input id="hist-amort-month" type="month" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white"></div><div><label for="hist-amort-amount" class="block text-xs text-slate-400 mb-1">Amortização extra realizada (R$)</label><input id="hist-amort-amount" type="number" min="0" step="0.01" placeholder="0,00" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white"></div><button id="hist-save-amort" type="button" class="bg-emerald-700 rounded-lg px-4 py-2 text-sm font-semibold text-white">Registrar amortização</button></div><p class="text-[11px] text-amber-300">Somente pagamentos já realizados. O registro não altera o saldo devedor nem realiza pagamentos.</p><p id="hist-gemini-progress" class="text-xs text-slate-300"></p><div class="space-y-2"><div class="flex justify-between gap-3 text-xs"><span>Progresso da meta de amortizações extras</span><span id="hist-payoff-percent" class="font-bold text-emerald-400">—</span></div><div class="h-3 rounded-full bg-slate-700 overflow-hidden"><div id="hist-payoff-bar" class="h-full bg-emerald-500 rounded-full" style="width:0%"></div></div><p id="hist-payoff-detail" class="text-xs text-slate-400">O progresso representa amortizações extras registradas, não o percentual da dívida quitado.</p></div></div><div class="bg-slate-900 border border-slate-800 rounded-xl p-5"><div class="h-64"><canvas id="chart-history"></canvas></div></div>
+            <div class="bg-slate-900 border border-emerald-700/40 rounded-xl p-5 space-y-3"><h3 class="text-sm font-bold text-emerald-400">Acompanhamento do plano Gemini</h3><p id="hist-gemini-description" class="text-xs text-slate-300"></p><div class="flex flex-wrap items-end gap-3"><div><label for="hist-amort-month" class="block text-xs text-slate-400 mb-1">Mês</label><input id="hist-amort-month" type="month" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white"></div><div><label for="hist-amort-amount" class="block text-xs text-slate-400 mb-1">Amortização extra realizada (R$)</label><input id="hist-amort-amount" type="number" min="0" step="0.01" placeholder="0,00" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white"></div><button id="hist-save-amort" type="button" class="bg-emerald-700 rounded-lg px-4 py-2 text-sm font-semibold text-white">Registrar amortização</button><button id="hist-delete-amort" type="button" class="bg-rose-800 rounded-lg px-4 py-2 text-sm font-semibold text-white">Excluir registro de teste</button></div><p class="text-[11px] text-amber-300">Registre somente pagamentos reais. Novas amortizações confirmadas reduzem o saldo cadastrado da dívida; nenhum pagamento bancário é executado.</p><p id="hist-gemini-progress" class="text-xs text-slate-300"></p><div class="space-y-2"><div class="flex justify-between gap-3 text-xs"><span>Progresso da meta de amortizações extras</span><span id="hist-payoff-percent" class="font-bold text-emerald-400">—</span></div><div class="h-3 rounded-full bg-slate-700 overflow-hidden"><div id="hist-payoff-bar" class="h-full bg-emerald-500 rounded-full" style="width:0%"></div></div><p id="hist-payoff-detail" class="text-xs text-slate-400">O progresso representa amortizações extras registradas, não o percentual da dívida quitado.</p></div></div><div class="bg-slate-900 border border-slate-800 rounded-xl p-5"><div class="h-64"><canvas id="chart-history"></canvas></div></div>
             <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                 <div class="px-5 py-4 border-b border-slate-800"><h3 class="text-sm font-semibold">Detalhamento mês a mês</h3><p class="text-xs text-slate-400 mt-1">Projeção baseada na renda, contas recorrentes e parcelas cadastradas.</p></div>
                 <div class="overflow-x-auto"><table class="w-full text-xs text-left"><thead class="bg-slate-950 text-slate-400"><tr><th class="p-3">Mês</th><th class="p-3">Receitas</th><th class="p-3">Contas</th><th class="p-3">Parcelas</th><th class="p-3">Investido</th><th class="p-3">Meta investimento</th><th class="p-3">Amortização extra</th><th class="p-3">Meta amortização</th><th class="p-3">Saldo livre</th><th class="p-3">Acumulado</th></tr></thead><tbody id="history-table" class="divide-y divide-slate-800"></tbody></table></div>
@@ -1661,6 +1661,22 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             month.value = currentInvestmentMonthKey();
             const load = () => { const value = (state.monthlyAmortizations || {})[month.value]; amount.value = value === undefined ? '' : value; };
             month.addEventListener('change', load); load();
+            const remove = document.getElementById('hist-delete-amort');
+            if (remove) remove.addEventListener('click', () => {
+                const key = month.value;
+                const tracked = Number((state.monthlyAmortizations || {})[key]) || 0;
+                if (!/^\d{4}-\d{2}$/.test(key) || tracked <= 0) {
+                    alert('Não existe amortização registrada neste mês. Selecione o mês do teste.'); return;
+                }
+                if (state.appliedAmortizations && state.appliedAmortizations[key]) {
+                    alert('Esta amortização já alterou o saldo da dívida. Para evitar inconsistências, ela não pode ser excluída por este botão.'); return;
+                }
+                if (!confirm('Excluir o registro de teste de ' + formatBRL(tracked) + ' em ' + key + '? O saldo devedor não será alterado.')) return;
+                delete state.monthlyAmortizations[key];
+                amount.value = '';
+                recalculate();
+                alert('Registro de teste excluído. O saldo da dívida foi preservado.');
+            });
             save.addEventListener('click', () => {
                 const key = month.value;
                 const value = Number(amount.value);
@@ -1699,7 +1715,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 };
                 recalculate();
                 alert('Amortização aplicada ao saldo devedor e salva no histórico do mês.');
-            });;
+            });
         }
         function initHistoryChart() {
             const canvas = document.getElementById('chart-history');
