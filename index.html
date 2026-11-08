@@ -1821,7 +1821,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             for (let i = 0; i < months; i++) {
                 const dt = new Date(start.getFullYear(), start.getMonth() + i, 1);
                 const monthKey = currentInvestmentMonthKey(dt);
-                const key = dt.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+                const key = dt.toLocaleDateString(({pt:'pt-BR',it:'it-IT',en:'en-US',es:'es-ES'})[activeLanguage] || 'pt-BR', { month: 'short', year: 'numeric' });
                 const billList = Array.isArray(state.bills) ? state.bills : [];
                 // No mês atual, espelha o total da tela inicial; nos meses futuros, considera apenas contas recorrentes/previstas.
                 const bills = i === 0
@@ -1857,7 +1857,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 incomeTotal += state.income;
                 expenseTotal += bills + debtPay;
                 investmentTotal += investment;
-                rows.push({ key, monthKey, income: state.income, bills, debtPay, investment, plannedInvestment, plannedExtra, actualExtra, investmentStatus: hasActualInvestment ? 'Realizado' : (isFuture ? 'Planejado' : (initialInvestment ? 'Inclui aporte inicial' : 'Sem registro')), net, cumulative });
+                rows.push({ key, monthKey, income: state.income, bills, debtPay, investment, plannedInvestment, plannedExtra, actualExtra, investmentStatus: hasActualInvestment ? 'Realizado' : (isFuture ? 'Planejado' : 'Sem registro'), net, cumulative });
             }
 
             const actualInvestmentTotal = rows.reduce((sum, row) => sum + Math.max(0, Number((state.monthlyInvestments || {})[row.monthKey]) || 0), 0);
