@@ -1060,32 +1060,194 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         };
         let activeLanguage = localStorage.getItem(LANGUAGE_KEY) || 'pt';
         if (!['pt','en','es','it'].includes(activeLanguage)) activeLanguage = 'pt';
+        // Traduções adicionais para toda a interface, incluindo conteúdo criado dinamicamente.
+        const EXTRA_TRANSLATIONS = [
+            ['Dashboard','Dashboard','Panel principal','Dashboard'],
+            ['Gestão de Contas & Dívidas','Bills & Debt Management','Gestión de cuentas y deudas','Gestione di conti e debiti'],
+            ['Cadastre suas obrigações mensais, altere status e simule planos de quitação.','Register monthly bills, update their status, and simulate repayment plans.','Registra tus obligaciones mensuales, cambia su estado y simula planes de pago.','Registra le spese mensili, modifica lo stato e simula piani di rimborso.'],
+            ['Nova Conta','New Bill','Nueva cuenta','Nuovo conto'],
+            ['Nova Dívida','New Debt','Nueva deuda','Nuovo debito'],
+            ['Contas a Pagar (Mensais)','Bills to Pay (Monthly)','Cuentas por pagar (mensuales)','Conti da pagare (mensili)'],
+            ['contas cadastradas','bills registered','cuentas registradas','conti registrati'],
+            ['Vencimento','Due Date','Vencimiento','Scadenza'],
+            ['Valor (R$)','Amount (R$)','Importe (R$)','Importo (R$)'],
+            ['Status','Status','Estado','Stato'],
+            ['Ações','Actions','Acciones','Azioni'],
+            ['Dívidas & Empréstimos Ativos','Active Debts & Loans','Deudas y préstamos activos','Debiti e prestiti attivi'],
+            ['Estratégia de Quitação Acelerada','Accelerated Debt Payoff Strategy','Estrategia de pago acelerado','Strategia di rimborso accelerato'],
+            ['Simule o tempo total para quitar todas as dívidas injetando um valor extra mensal.','Estimate how long it will take to pay off all debts by adding an extra monthly amount.','Calcula cuánto tardarás en pagar todas las deudas añadiendo una cantidad mensual extra.','Calcola il tempo necessario per estinguere tutti i debiti aggiungendo un importo mensile extra.'],
+            ['Aporte Extra Mensal (R$)','Extra Monthly Payment (R$)','Pago mensual adicional (R$)','Versamento mensile extra (R$)'],
+            ['Estratégia','Strategy','Estrategia','Strategia'],
+            ['Método Avalanche (Maior Juros Primeiro)','Avalanche Method (Highest Interest First)','Método avalancha (mayor interés primero)','Metodo valanga (interessi più alti prima)'],
+            ['Método Bola de Neve (Menor Saldo Primeiro)','Snowball Method (Smallest Balance First)','Método bola de nieve (menor saldo primero)','Metodo valanga (saldo più basso prima)'],
+            ['Tempo total estimado:','Estimated total time:','Tiempo total estimado:','Tempo totale stimato:'],
+            ['Economia estimada em juros:','Estimated interest savings:','Ahorro estimado en intereses:','Risparmio stimato sugli interessi:'],
+            ['Análise financeira por período','Financial Analysis by Period','Análisis financiero por período','Analisi finanziaria per periodo'],
+            ['Compare receitas, contas, parcelas e saldo projetado mês a mês.','Compare income, bills, installments, and projected balance month by month.','Compara ingresos, cuentas, cuotas y saldo proyectado mes a mes.','Confronta entrate, spese, rate e saldo previsto mese per mese.'],
+            ['Período','Period','Período','Periodo'],
+            ['Receita acumulada','Cumulative Income','Ingresos acumulados','Entrate cumulative'],
+            ['Despesas e parcelas','Expenses and Installments','Gastos y cuotas','Spese e rate'],
+            ['Investimentos no período','Investments in Period','Inversiones del período','Investimenti nel periodo'],
+            ['Saldo após despesas e aportes','Balance After Expenses and Contributions','Saldo después de gastos y aportaciones','Saldo dopo spese e versamenti'],
+            ['Detalhamento mês a mês','Month-by-Month Details','Detalle mes a mes','Dettaglio mese per mese'],
+            ['Projeção baseada na renda, contas recorrentes e parcelas cadastradas.','Projection based on income, recurring bills, and registered installments.','Proyección basada en ingresos, gastos recurrentes y cuotas registradas.','Proiezione basata su entrate, spese ricorrenti e rate registrate.'],
+            ['Receitas','Income','Ingresos','Entrate'],
+            ['Contas','Bills','Cuentas','Conti'],
+            ['Parcelas','Installments','Cuotas','Rate'],
+            ['Investido','Invested','Invertido','Investito'],
+            ['Saldo livre','Available balance','Saldo disponible','Saldo disponibile'],
+            ['Acumulado','Cumulative','Acumulado','Cumulato'],
+            ['Atenção: meses futuros são projeções, não lançamentos reais. Os resultados dependem dos valores e vencimentos cadastrados.','Note: future months are projections, not actual transactions. Results depend on the registered amounts and due dates.','Atención: los meses futuros son proyecciones, no movimientos reales. Los resultados dependen de los importes y vencimientos registrados.','Attenzione: i mesi futuri sono proiezioni, non movimenti effettivi. I risultati dipendono dagli importi e dalle scadenze registrati.'],
+            ['Cronograma & Projeção de Investimentos Futuros','Future Investment Schedule & Projection','Calendario y proyección de inversiones futuras','Piano e proiezione degli investimenti futuri'],
+            ['Simule a rentabilidade do CDI compostos mês a mês e visualize a curva de patrimônio.','Simulate monthly compound CDI returns and view your portfolio growth.','Simula el rendimiento compuesto mensual del CDI y visualiza la evolución del patrimonio.','Simula il rendimento composto mensile del CDI e visualizza la crescita del patrimonio.'],
+            ['Modo Tabela:','Table Mode:','Modo tabla:','Modalità tabella:'],
+            ['Aporte Inicial (R$)','Initial Contribution (R$)','Aportación inicial (R$)','Versamento iniziale (R$)'],
+            ['Aporte Mensal (R$)','Monthly Contribution (R$)','Aportación mensual (R$)','Versamento mensile (R$)'],
+            ['CDI Anual (%)','Annual CDI (%)','CDI anual (%)','CDI annuo (%)'],
+            ['% do CDI','% of CDI','% del CDI','% del CDI'],
+            ['Prazo (Meses)','Term (Months)','Plazo (meses)','Durata (mesi)'],
+            ['Total Investido','Total Invested','Total invertido','Totale investito'],
+            ['Rendimento Bruto','Gross Return','Rendimiento bruto','Rendimento lordo'],
+            ['Imposto de Renda (Est.)','Estimated Income Tax','Impuesto sobre la renta (est.)','Imposta sul reddito (stima)'],
+            ['Saldo Final Líquido','Net Final Balance','Saldo final neto','Saldo finale netto'],
+            ['Registrar quanto você investiu em cada mês','Record How Much You Invested Each Month','Registra cuánto invertiste cada mes','Registra quanto hai investito ogni mese'],
+            ['Informe o valor efetivamente aplicado. Ele será usado no cronograma no lugar da previsão daquele mês.','Enter the amount actually invested. It will replace that month’s forecast in the schedule.','Introduce el importe realmente invertido. Sustituirá la previsión de ese mes.','Inserisci l’importo effettivamente investito. Sostituirà la previsione di quel mese.'],
+            ['Mês do aporte','Contribution Month','Mes de la aportación','Mese del versamento'],
+            ['Valor investido (R$)','Amount Invested (R$)','Importe invertido (R$)','Importo investito (R$)'],
+            ['Salvar aporte do mês','Save Monthly Contribution','Guardar aportación del mes','Salva versamento del mese'],
+            ['Total registrado','Total Recorded','Total registrado','Totale registrato'],
+            ['Média por mês registrado','Average per Recorded Month','Promedio por mes registrado','Media per mese registrato'],
+            ['Meses com aporte registrado','Months with Contributions','Meses con aportaciones registradas','Mesi con versamenti registrati'],
+            ['Histórico de aportes reais','Actual Contributions History','Historial de aportaciones reales','Storico dei versamenti effettivi'],
+            ['Nenhum aporte registrado ainda.','No contributions recorded yet.','Aún no hay aportaciones registradas.','Nessun versamento registrato.'],
+            ['Para corrigir um mês, selecione-o novamente e salve o novo valor.','To correct a month, select it again and save the new amount.','Para corregir un mes, selecciónalo de nuevo y guarda el nuevo importe.','Per correggere un mese, selezionalo di nuovo e salva il nuovo importo.'],
+            ['Evolução Patrimonial (Investido vs. Juros Compostos)','Portfolio Growth (Invested vs. Compound Interest)','Evolución del patrimonio (invertido frente a interés compuesto)','Crescita del patrimonio (investito vs. interesse composto)'],
+            ['Exportar Dados','Export Data','Exportar datos','Esporta dati'],
+            ['Mês / Período','Month / Period','Mes / Período','Mese / Periodo'],
+            ['Saldo Inicial','Starting Balance','Saldo inicial','Saldo iniziale'],
+            ['Aporte','Contribution','Aportación','Versamento'],
+            ['Rendimento Mês','Monthly Return','Rendimiento mensual','Rendimento mensile'],
+            ['Alíquota IR','Income Tax Rate','Tipo impositivo','Aliquota fiscale'],
+            ['Saldo Bruto','Gross Balance','Saldo bruto','Saldo lordo'],
+            ['Saldo Líquido Est.','Estimated Net Balance','Saldo neto estimado','Saldo netto stimato'],
+            ['Central de Integração Amazon Alexa','Amazon Alexa Integration Center','Centro de integración de Amazon Alexa','Centro integrazione Amazon Alexa'],
+            ['Simule comandos de voz e veja a especificação técnica da Skill completa.','Simulate voice commands and view the complete Skill technical specification.','Simula comandos de voz y consulta la especificación técnica completa de la Skill.','Simula i comandi vocali e consulta le specifiche tecniche complete della Skill.'],
+            ['Simulador de Voz Alexa','Alexa Voice Simulator','Simulador de voz de Alexa','Simulatore vocale Alexa'],
+            ['Escolha um comando de voz para testar a resposta da Skill em tempo real:','Choose a voice command to test the Skill response in real time:','Elige un comando de voz para probar la respuesta de la Skill en tiempo real:','Scegli un comando vocale per testare la risposta della Skill in tempo reale:'],
+            ['Resposta da Alexa','Alexa Response','Respuesta de Alexa','Risposta di Alexa'],
+            ['Integração Inteligente Google Gemini AI','Google Gemini AI Smart Integration','Integración inteligente de Google Gemini AI','Integrazione intelligente Google Gemini AI'],
+            ['Assistente financeiro autônomo, análise contextual de orçamento e código de integração API.','Autonomous financial assistant, contextual budget analysis, and API integration code.','Asistente financiero autónomo, análisis contextual del presupuesto y código de integración API.','Assistente finanziario autonomo, analisi contestuale del budget e codice di integrazione API.'],
+            ['Assistente Financeiro Gemini','Gemini Financial Assistant','Asistente financiero Gemini','Assistente finanziario Gemini'],
+            ['Gerar Diagnóstico Completo','Generate Full Diagnosis','Generar diagnóstico completo','Genera diagnosi completa'],
+            ['Comandos Sugeridos para o Gemini','Suggested Prompts for Gemini','Comandos sugeridos para Gemini','Comandi suggeriti per Gemini'],
+            ['Adicionar Nova Conta','Add New Bill','Añadir nueva cuenta','Aggiungi nuovo conto'],
+            ['Moradia','Housing','Vivienda','Abitazione'],
+            ['Serviços / Utilidades','Utilities','Servicios / suministros','Servizi / utenze'],
+            ['Alimentação','Food','Alimentación','Alimentazione'],
+            ['Transporte','Transportation','Transporte','Trasporti'],
+            ['Assinaturas / Lazer','Subscriptions / Leisure','Suscripciones / ocio','Abbonamenti / tempo libero'],
+            ['Salvar Conta','Save Bill','Guardar cuenta','Salva conto'],
+            ['Cadastrar dívida parcelada','Add Installment Debt','Registrar deuda a plazos','Registra debito rateale'],
+            ['Valor total (R$)','Total Amount (R$)','Importe total (R$)','Importo totale (R$)'],
+            ['Quantidade de parcelas','Number of Installments','Cantidad de cuotas','Numero di rate'],
+            ['Valor da parcela (R$)','Installment Amount (R$)','Importe de la cuota (R$)','Importo della rata (R$)'],
+            ['Juros ao mês (%)','Monthly Interest (%)','Interés mensual (%)','Interesse mensile (%)'],
+            ['Primeiro vencimento','First Due Date','Primer vencimiento','Prima scadenza'],
+            ['Parcelas já pagas','Installments Already Paid','Cuotas ya pagadas','Rate già pagate'],
+            ['Se informar o valor da parcela, ele será usado no cronograma. Se deixar vazio, o sistema calcula uma parcela estimada com juros mensais.','If you enter an installment amount, it will be used in the schedule. If left blank, the system estimates it using monthly interest.','Si introduces el importe de la cuota, se utilizará en el calendario. Si lo dejas vacío, el sistema calculará una cuota estimada con intereses mensuales.','Se inserisci l’importo della rata, verrà utilizzato nel piano. Se lasci il campo vuoto, il sistema stimerà una rata con gli interessi mensili.'],
+            ['Editar Renda Mensal','Edit Monthly Income','Editar ingresos mensuales','Modifica entrate mensili'],
+            ['Nova Renda Mensal (R$)','New Monthly Income (R$)','Nuevos ingresos mensuales (R$)','Nuove entrate mensili (R$)'],
+            ['Próximos Vencimentos','Upcoming Due Dates','Próximos vencimientos','Prossime scadenze'],
+            ['Próximos 7 dias','Next 7 Days','Próximos 7 días','Prossimi 7 giorni'],
+            ['Insight Gemini AI','Gemini AI Insight','Análisis de Gemini AI','Approfondimento Gemini AI'],
+            ['Distribuição do Orçamento','Budget Breakdown','Distribución del presupuesto','Distribuzione del budget'],
+            ['Contas Fixas (','Fixed Bills (','Gastos fijos (','Spese fisse ('],
+            ['Dívidas (','Debts (','Deudas (','Debiti ('],
+            ['Investimento Mensal (','Monthly Investment (','Inversión mensual (','Investimento mensile ('],
+            ['Saldo Livre (','Available Balance (','Saldo disponible (','Saldo disponibile ('],
+            ['Informe seu e-mail e uma senha com pelo menos 6 caracteres.','Enter your email and a password with at least 6 characters.','Introduce tu correo electrónico y una contraseña de al menos 6 caracteres.','Inserisci la tua email e una password di almeno 6 caratteri.'],
+            ['Digite seu e-mail para receber o link de recuperação.','Enter your email to receive the recovery link.','Introduce tu correo para recibir el enlace de recuperación.','Inserisci la tua email per ricevere il link di recupero.'],
+            ['Enviamos um link de recuperação para seu e-mail.','We sent a recovery link to your email.','Hemos enviado un enlace de recuperación a tu correo.','Abbiamo inviato un link di recupero alla tua email.'],
+            ['Não foi possível concluir. Confira os dados e tente novamente.','Could not complete the request. Check the details and try again.','No se pudo completar. Comprueba los datos e inténtalo de nuevo.','Impossibile completare. Controlla i dati e riprova.'],
+            ['Falha de conexão. Verifique sua internet.','Connection failed. Check your internet connection.','Error de conexión. Comprueba tu conexión a internet.','Connessione non riuscita. Controlla la connessione internet.'],
+            ['Sincronizado','Synced','Sincronizado','Sincronizzato'],
+            ['Conta conectada','Connected account','Cuenta conectada','Account connesso'],
+            ['Você','You','Tú','Tu'],
+            ['Nenhuma conta pendente para os próximos dias.','No bills due in the next few days.','No hay cuentas pendientes para los próximos días.','Nessuna spesa in scadenza nei prossimi giorni.'],
+            ['Nenhuma dívida cadastrada.','No debts registered.','No hay deudas registradas.','Nessun debito registrato.'],
+            ['Operação realizada com sucesso!','Operation completed successfully!','¡Operación realizada correctamente!','Operazione completata con successo!'],
+            ['Conta adicionada com sucesso!','Bill added successfully!','¡Cuenta añadida correctamente!','Conto aggiunto correttamente!'],
+            ['Dívida adicionada com sucesso!','Debt added successfully!','¡Deuda añadida correctamente!','Debito aggiunto correttamente!'],
+            ['Registro atualizado com sucesso!','Record updated successfully!','¡Registro actualizado correctamente!','Record aggiornato correttamente!'],
+            ['Deseja realmente excluir?','Are you sure you want to delete this?','¿Realmente deseas eliminarlo?','Vuoi davvero eliminare?'],
+            ['Pago','Paid','Pagado','Pagato'],
+            ['Pendente','Pending','Pendiente','In sospeso'],
+            ['A vencer','Upcoming','Por vencer','In scadenza'],
+            ['Mês atual','Current month','Mes actual','Mese corrente'],
+            ['Sem dados para exibir.','No data to display.','No hay datos para mostrar.','Nessun dato da visualizzare.']
+        ];
+        for (const [pt, en, es, it] of EXTRA_TRANSLATIONS) {
+            UI_TRANSLATIONS.en[pt] = en;
+            UI_TRANSLATIONS.es[pt] = es;
+            UI_TRANSLATIONS.it[pt] = it;
+        }
+
+        // Mantém o texto original de cada elemento para permitir alternar idiomas sem perder conteúdo.
+        const languageTextState = new WeakMap();
+        const languageAttributeState = new WeakMap();
         function translateUiText(value, language) {
-            const text = String(value || '');
-            const trimmed = text.trim();
-            if (!trimmed) return text;
+            const original = String(value ?? '');
+            const trimmed = original.trim();
+            if (!trimmed) return original;
             let canonical = trimmed;
             for (const dict of Object.values(UI_TRANSLATIONS)) {
                 const found = Object.keys(dict).find(key => dict[key] === canonical);
                 if (found) { canonical = found; break; }
             }
-            const translated = language === 'pt' ? canonical : (UI_TRANSLATIONS[language]?.[canonical] || canonical);
-            return text.replace(trimmed, translated);
+            let translated = language === 'pt' ? canonical : (UI_TRANSLATIONS[language]?.[canonical] || canonical);
+            if (translated === canonical && language !== 'pt') {
+                const entries = Object.keys(UI_TRANSLATIONS[language] || {}).sort((x,y) => y.length-x.length);
+                for (const key of entries) {
+                    if (canonical.includes(key)) canonical = canonical.split(key).join(UI_TRANSLATIONS[language][key]);
+                }
+                translated = canonical;
+            }
+            return original.replace(trimmed, translated);
+        }
+        function translateLanguageNode(node) {
+            if (!node) return;
+            const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+            let textNode;
+            while ((textNode = walker.nextNode())) {
+                const current = textNode.nodeValue;
+                const saved = languageTextState.get(textNode);
+                if (!saved || current !== saved.last) {
+                    languageTextState.set(textNode, { original: current, last: current });
+                }
+                const state = languageTextState.get(textNode);
+                const translated = translateUiText(state.original, activeLanguage);
+                if (current !== translated) textNode.nodeValue = translated;
+                state.last = translated;
+            }
+            if (node.nodeType === Node.ELEMENT_NODE) {
+                const attrs = ['placeholder','title','aria-label'];
+                let savedAttrs = languageAttributeState.get(node);
+                if (!savedAttrs) { savedAttrs = {}; languageAttributeState.set(node, savedAttrs); }
+                for (const attr of attrs) {
+                    if (!node.hasAttribute(attr)) continue;
+                    const current = node.getAttribute(attr);
+                    if (savedAttrs[attr] === undefined || current !== savedAttrs[attr + ':last']) savedAttrs[attr] = current;
+                    const translated = translateUiText(savedAttrs[attr], activeLanguage);
+                    if (current !== translated) node.setAttribute(attr, translated);
+                    savedAttrs[attr + ':last'] = translated;
+                }
+            }
         }
         function applyLanguage(language) {
             activeLanguage = ['pt','en','es','it'].includes(language) ? language : 'pt';
-            localStorage.setItem(LANGUAGE_KEY, activeLanguage);
+            try { localStorage.setItem(LANGUAGE_KEY, activeLanguage); } catch (error) {}
             document.documentElement.lang = ({pt:'pt-BR',en:'en',es:'es',it:'it'})[activeLanguage];
-            document.querySelectorAll('body *').forEach(element => {
-                if (element.children.length === 0 && element.id !== 'account-email' && element.tagName !== 'SCRIPT' && element.tagName !== 'STYLE') {
-                    if (element.childNodes.length === 1 && element.firstChild.nodeType === Node.TEXT_NODE) {
-                        element.firstChild.nodeValue = translateUiText(element.firstChild.nodeValue, activeLanguage);
-                    }
-                }
-                ['placeholder','title','aria-label'].forEach(attr => {
-                    if (element.hasAttribute(attr)) element.setAttribute(attr, translateUiText(element.getAttribute(attr), activeLanguage));
-                });
-            });
+            translateLanguageNode(document.body);
             const picker = document.getElementById('language-select');
             if (picker && picker.value !== activeLanguage) picker.value = activeLanguage;
         }
@@ -1093,7 +1255,21 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const picker = document.getElementById('language-select');
             if (picker) picker.addEventListener('change', () => applyLanguage(picker.value));
             applyLanguage(activeLanguage);
-            // A tradução inicial é aplicada uma vez; componentes dinâmicos preservam seu texto original.
+            // Observa apenas alterações de conteúdo. Não observa atributos para evitar ciclos de tradução.
+            if (!window.finControlLanguageObserver) {
+                window.finControlLanguageObserver = new MutationObserver(records => {
+                    for (const record of records) {
+                        if (record.type === 'characterData') {
+                            translateLanguageNode(record.target.parentNode || document.body);
+                        } else {
+                            for (const added of record.addedNodes) {
+                                if (added.nodeType === Node.ELEMENT_NODE || added.nodeType === Node.TEXT_NODE) translateLanguageNode(added);
+                            }
+                        }
+                    }
+                });
+                window.finControlLanguageObserver.observe(document.body, {subtree:true, childList:true, characterData:true});
+            }
         }
 
         const state = {
