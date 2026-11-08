@@ -2471,7 +2471,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 try {
                     const model = await getModel();
                     if (!currentUser || currentUser.uid !== uid) { status.remove(); return; }
-                    const currentMonth = new Date().toISOString().slice(0,7);
+                    const today = new Date();
+                const currentMonth = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0');
                 const financialData = snapshot();
                 const planGoals = financialData.aiPayoffPlan || {};
                 const actualInvest = Number(financialData.monthlyInvestments?.[currentMonth]) || 0;
