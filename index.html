@@ -1671,7 +1671,23 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     const note = document.createElement('p');
                     note.className = 'text-amber-300 mt-2';
                     note.textContent = 'Atualização automática com os registros do aplicativo. Metas futuras não são pagamentos realizados. Amortizações registradas não comprovam a baixa no contrato.';
-                    autoMonitor.append(heading, invested, amortized, note);
+                    const analyzeButton = document.createElement('button');
+                    analyzeButton.type = 'button';
+                    analyzeButton.className = 'mt-3 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs';
+                    analyzeButton.textContent = 'Analisar minhas metas com Gemini';
+                    analyzeButton.addEventListener('click', () => {
+                        if (!currentUser) { alert('Entre na sua conta para consultar o Gemini.'); return; }
+                        const prompt = 'Analise meu monitoramento financeiro de ' + monthLabel + '. Meta de investimentos: ' + formatBRL(planInvestment) + '; investimentos efetivamente registrados: ' + formatBRL(monthInvestment) + '; faltam: ' + formatBRL(investmentGap) + '. Meta de amortização extra: ' + formatBRL(planExtra) + '; amortizações registradas: ' + formatBRL(monthExtra) + '; faltam: ' + formatBRL(extraGap) + '. Compare com minha renda, contas e dívidas cadastradas, avalie se as metas são viáveis e sugira até três ajustes práticos. Diferencie valores planejados dos realizados, não invente dados e não altere nenhum registro sem minha confirmação.';
+                        const input = document.getElementById('gemini-user-input');
+                        const send = document.getElementById('btn-send-gemini');
+                        const tab = document.querySelector('[data-tab="gemini"]');
+                        if (!input || !send || !tab) { alert('Não foi possível abrir o assistente Gemini.'); return; }
+                        tab.click();
+                        input.value = prompt;
+                        input.focus();
+                        // O usuário confirma o envio no chat. A análise não grava alterações automaticamente.
+                    });
+                    autoMonitor.append(heading, invested, amortized, note, analyzeButton);
                 }
             }
             if (historyChart) {
