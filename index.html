@@ -1293,6 +1293,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 { id: 2, desc: 'Empréstimo Pessoal', balance: 8000.0, ratePct: 2.5, minPayment: 550.0 }
             ],
             monthlyInvestments: {},
+            aiPayoffPlan: null,
             investmentConfig: {
                 initial: 3000.0,
                 monthly: 1000.0,
@@ -1330,7 +1331,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 bills: state.bills,
                 debts: state.debts,
                 investmentConfig: state.investmentConfig,
-                monthlyInvestments: state.monthlyInvestments
+                monthlyInvestments: state.monthlyInvestments,
+                aiPayoffPlan: state.aiPayoffPlan
             };
         }
 
@@ -1339,6 +1341,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             if (Number.isFinite(saved.income)) state.income = saved.income;
             if (Array.isArray(saved.bills)) state.bills = saved.bills;
             if (Array.isArray(saved.debts)) state.debts = saved.debts;
+            if (saved.aiPayoffPlan && typeof saved.aiPayoffPlan === 'object') state.aiPayoffPlan = saved.aiPayoffPlan;
             if (saved.monthlyInvestments && typeof saved.monthlyInvestments === "object" && !Array.isArray(saved.monthlyInvestments)) state.monthlyInvestments = saved.monthlyInvestments;
             if (saved.investmentConfig && typeof saved.investmentConfig === 'object') {
                 state.investmentConfig = { ...state.investmentConfig, ...saved.investmentConfig };
@@ -2058,6 +2061,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 bills: state.bills.map(({id,desc,cat,val,date,paid}) => ({id,desc,cat,val,date,paid})),
                 debts: state.debts.map(({id,desc,balance,ratePct,minPayment}) => ({id,desc,balance,ratePct,minPayment})),
                 monthlyInvestments: state.monthlyInvestments,
+                aiPayoffPlan: state.aiPayoffPlan,
                 investmentConfig: state.investmentConfig
             });
             async function getModel() {
@@ -2075,7 +2079,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     const ai = sdk.getAI(modularApp, { backend: new sdk.GoogleAIBackend() });
                     return sdk.getGenerativeModel(ai, {
                         model: 'gemini-3-flash-preview',
-                        systemInstruction: 'Você é um assistente financeiro em português brasileiro. Use somente os dados fornecidos. Não invente saldos, juros, preços ou rendimentos. Não execute operações. Para solicitar mudanças, responda com JSON puro no formato {"message":"resumo curto","action":{"type":"add_bill|edit_bill|set_bill_paid|add_debt|edit_debt|set_income|record_investment","id":numero opcional,"data":{...}}}. Para consultas, retorne texto normal. Uma única ação por resposta. Para editar contas: desc,cat,val,date,paid; dívidas: desc,balance,ratePct,minPayment; renda: value; investimentos: month (YYYY-MM),amount. Nunca proponha apagar dados ou transferir dinheiro. Para cronogramas, apenas aconselhe, sem alterar dados automaticamente.'
+                        systemInstruction: 'Você é um assistente financeiro em português brasileiro. Use somente os dados fornecidos. Não invente saldos, juros, preços ou rendimentos. Não execute operações. Para solicitar mudanças, responda com JSON puro no formato {"message":"resumo curto","action":{"type":"add_bill|edit_bill|set_bill_paid|add_debt|edit_debt|set_income|record_investment|save_payoff_plan","id":numero opcional,"data":{...}}}. Para consultas, retorne texto normal. Uma única ação por resposta. Para editar contas: desc,cat,val,date,paid; dívidas: desc,balance,ratePct,minPayment; renda: value; investimentos: month (YYYY-MM),amount. Nunca proponha apagar dados ou transferir dinheiro. Se o usuário pedir para aplicar uma estratégia de quitação e investimento no aplicativo, proponha action type save_payoff_plan com data {debtId: número, monthlyInvestment: número >= 0, monthlyExtraPayment: número >= 0, months: inteiro entre 1 e 60, rationale: texto curto}. Use um id de dívida existente. Não altere o saldo da dívida, nem registre pagamentos reais; o plano apenas define metas de aporte e amortização futura, sujeitas a confirmação.'
                     });
                 })().catch(error => { aiModelPromise = null; throw error; });
                 return aiModelPromise;
@@ -2107,6 +2111,12 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                             {type:'edit_debt',id:existingDebt.id,data} : null;
                     case 'set_income':
                         return number(data.value) ? {type:'set_income',data:{value:data.value}} : null;
+                    case 'save_payoff_plan': {
+                        const debt = state.debts.find(d => d.id === Number(data.debtId));
+                        const free = state.income - state.bills.reduce((a,b)=>a+Number(b.val||0),0) - state.debts.reduce((a,d)=>a+Number(d.minPayment||0),0);
+                        return debt && number(data.monthlyInvestment) && number(data.monthlyExtraPayment) && data.monthlyInvestment + data.monthlyExtraPayment <= Math.max(0,free) && Number.isInteger(data.months) && data.months >= 1 && data.months <= 60 && str(data.rationale) ?
+                            {type:'save_payoff_plan',data:{debtId:debt.id,monthlyInvestment:data.monthlyInvestment,monthlyExtraPayment:data.monthlyExtraPayment,months:data.months,rationale:data.rationale}} : null;
+                    }
                     case 'record_investment':
                         return typeof data.month === 'string' && /^\\d{4}-(0[1-9]|1[0-2])$/.test(data.month) && number(data.amount) ?
                             {type:'record_investment',data:{month:data.month,amount:data.amount}} : null;
@@ -2124,6 +2134,13 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     case 'edit_debt': Object.assign(state.debts.find(b => b.id === action.id),d); break;
                     case 'set_income': state.income = d.value; break;
                     case 'record_investment': state.monthlyInvestments[d.month] = d.amount; break;
+                    case 'save_payoff_plan': {
+                        state.aiPayoffPlan = {...d,createdAt:new Date().toISOString()};
+                        state.investmentConfig.monthly = d.monthlyInvestment;
+                        const monthlyInput = document.getElementById('inv-monthly');
+                        if (monthlyInput) monthlyInput.value = d.monthlyInvestment;
+                        break;
+                    }
                 }
                 recalculate();
             }
@@ -2153,7 +2170,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     const approved = window.confirm('O Gemini propôs esta alteração nos seus dados financeiros:\\n\\n' + JSON.stringify(action,null,2) + '\\n\\nConfirma a execução?');
                     if (!approved) { addMessage('ai','Alteração cancelada. Nenhum dado foi modificado.'); return; }
                     applyAction(action);
-                    addMessage('ai','Alteração aplicada. Confira os valores na tela.');
+                    if (action.type === 'save_payoff_plan') addMessage('ai','Plano salvo: aporte mensal de ' + formatBRL(action.data.monthlyInvestment) + ' e meta de amortização extra de ' + formatBRL(action.data.monthlyExtraPayment) + ' por mês durante ' + action.data.months + ' meses. Nenhum pagamento ou aporte foi executado.');
+                    else addMessage('ai','Alteração aplicada. Confira os valores na tela.');
                 } catch (error) {
                     status.remove();
                     console.error('Gemini AI Logic:',error);
