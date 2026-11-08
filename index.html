@@ -163,6 +163,33 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased flex flex-col">
 
+    <!-- Login / Cadastro Firebase -->
+    <section id="auth-overlay" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/95 p-4">
+        <div class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div class="mb-6 text-center">
+                <div class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400">
+                    <i class="fa-solid fa-wallet text-2xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-white">FinControl <span class="text-emerald-400">Pro</span></h2>
+                <p class="mt-2 text-sm text-slate-400">Entre ou crie sua conta para acessar seu controle financeiro.</p>
+            </div>
+            <div id="auth-error" class="mb-4 hidden rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-300"></div>
+            <form id="auth-form" class="space-y-3">
+                <label class="block text-xs font-medium text-slate-300" for="auth-email">E-mail</label>
+                <input id="auth-email" type="email" autocomplete="email" required placeholder="seu@email.com" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500">
+                <label class="block text-xs font-medium text-slate-300" for="auth-password">Senha</label>
+                <input id="auth-password" type="password" autocomplete="current-password" required minlength="6" placeholder="Mínimo de 6 caracteres" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500">
+                <button id="auth-submit" type="submit" class="w-full rounded-lg bg-emerald-500 px-4 py-3 font-bold text-slate-950 transition hover:bg-emerald-400">Entrar</button>
+            </form>
+            <div class="mt-4 grid grid-cols-2 gap-3">
+                <button id="auth-create" type="button" class="rounded-lg border border-emerald-500/40 px-3 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/10">Criar conta</button>
+                <button id="auth-reset" type="button" class="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Esqueci a senha</button>
+            </div>
+            <p class="mt-5 text-center text-xs text-slate-500">Seus dados financeiros ficam privados na sua conta.</p>
+        </div>
+    </section>
+
+
     <!-- Toast Notification Banner -->
     <div id="toast-notification" class="fixed bottom-4 right-4 z-50 hidden bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-xs transition-all duration-300">
         <i class="fa-solid fa-circle-check text-base"></i>
@@ -181,6 +208,13 @@
                         <h1 class="text-lg font-bold text-white leading-tight">FinControl <span class="text-emerald-400">Pro</span></h1>
                         <p class="text-xs text-slate-400">Controle Financeiro • Alexa • Gemini AI</p>
                     </div>
+                </div>
+
+                <div id="account-controls" class="flex items-center gap-3">
+                    <span id="account-email" class="hidden max-w-[160px] truncate text-xs text-slate-400 sm:inline"></span>
+                    <button id="btn-logout" type="button" class="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:border-rose-500 hover:text-rose-300">
+                        <i class="fa-solid fa-right-from-bracket mr-1"></i>Sair
+                    </button>
                 </div>
                 <!-- Quick Summary Badges -->
                 <div class="hidden md:flex items-center space-x-6 text-sm">
@@ -955,33 +989,180 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         let investChart = null;
         let historyChart = null;
         const STORAGE_KEY = 'fincontrol-pro-data-v2';
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyCBYEIKR647HUc4wITL4hltdLD0jRMJ_Pk",
+            authDomain: "fincontrol-pro-6cc5d.firebaseapp.com",
+            projectId: "fincontrol-pro-6cc5d",
+            storageBucket: "fincontrol-pro-6cc5d.firebasestorage.app",
+            messagingSenderId: "122755954288",
+            appId: "1:122755954288:web:6416faa5181168c42d26b5",
+            measurementId: "G-F0Y5HV6Q9B"
+        };
+        if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        let currentUser = null;
+        let cloudSaveTimer = null;
+        let authMode = 'login';
 
-        function saveAppData() {
-            try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                    income: state.income,
-                    bills: state.bills,
-                    debts: state.debts,
-                    investmentConfig: state.investmentConfig
-                }));
-            } catch (error) {
-                console.warn('Não foi possível salvar os dados localmente.', error);
+        function getAppData() {
+            return {
+                income: state.income,
+                bills: state.bills,
+                debts: state.debts,
+                investmentConfig: state.investmentConfig
+            };
+        }
+
+        function applyAppData(saved) {
+            if (!saved || typeof saved !== 'object') return;
+            if (Number.isFinite(saved.income)) state.income = saved.income;
+            if (Array.isArray(saved.bills)) state.bills = saved.bills;
+            if (Array.isArray(saved.debts)) state.debts = saved.debts;
+            if (saved.investmentConfig && typeof saved.investmentConfig === 'object') {
+                state.investmentConfig = { ...state.investmentConfig, ...saved.investmentConfig };
             }
         }
 
-        function loadAppData() {
+        function resetStateForNewUser() {
+            state.income = 0;
+            state.bills = [];
+            state.debts = [];
+            state.investmentConfig = { initial: 0, monthly: 0, cdiAnnual: 13.6, ratePct: 100, months: 12, useIR: true };
+        }
+
+        function userStorageKey(uid) { return STORAGE_KEY + ':' + uid; }
+
+        function saveAppData() {
+            const data = getAppData();
             try {
-                const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-                if (!saved) return;
-                if (Number.isFinite(saved.income)) state.income = saved.income;
-                if (Array.isArray(saved.bills)) state.bills = saved.bills;
-                if (Array.isArray(saved.debts)) state.debts = saved.debts;
-                if (saved.investmentConfig && typeof saved.investmentConfig === 'object') {
-                    state.investmentConfig = { ...state.investmentConfig, ...saved.investmentConfig };
-                }
+                const key = currentUser ? userStorageKey(currentUser.uid) : STORAGE_KEY;
+                localStorage.setItem(key, JSON.stringify(data));
             } catch (error) {
-                console.warn('Dados locais não puderam ser carregados.', error);
+                console.warn('Não foi possível salvar os dados localmente.', error);
             }
+            if (currentUser) {
+                clearTimeout(cloudSaveTimer);
+                cloudSaveTimer = setTimeout(async () => {
+                    try {
+                        await db.collection('users').doc(currentUser.uid).collection('appData').doc('main').set({
+                            ...data,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        const status = document.getElementById('cloud-status');
+                        if (status) status.textContent = 'Sincronizado';
+                    } catch (error) {
+                        console.error('Falha ao sincronizar com a nuvem:', error);
+                        showToast('Não foi possível sincronizar. Verifique sua conexão.');
+                    }
+                }, 450);
+            }
+        }
+
+        async function loadUserData(user) {
+            currentUser = user;
+            document.getElementById('account-email').textContent = user.email || 'Conta conectada';
+            document.getElementById('auth-overlay').classList.add('hidden');
+            try {
+                const docRef = db.collection('users').doc(user.uid).collection('appData').doc('main');
+                const cloudDoc = await docRef.get();
+                if (cloudDoc.exists) {
+                    applyAppData(cloudDoc.data());
+                } else {
+                    const cached = localStorage.getItem(userStorageKey(user.uid));
+                    if (cached) {
+                        applyAppData(JSON.parse(cached));
+                    } else {
+                        const legacy = localStorage.getItem(STORAGE_KEY);
+                        if (legacy) {
+                            // Importa os dados locais antigos apenas para a primeira conta que fizer essa migração.
+                            applyAppData(JSON.parse(legacy));
+                            localStorage.removeItem(STORAGE_KEY);
+                        } else {
+                            resetStateForNewUser();
+                        }
+                    }
+                    await docRef.set({
+                        ...getAppData(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+                localStorage.setItem(userStorageKey(user.uid), JSON.stringify(getAppData()));
+                recalculate();
+                const cloudStatus = document.getElementById('cloud-status');
+                if (cloudStatus) cloudStatus.textContent = 'Sincronizado';
+            } catch (error) {
+                console.error('Erro ao carregar dados da conta:', error);
+                document.getElementById('auth-overlay').classList.remove('hidden');
+                showAuthError('Não foi possível carregar seus dados. Confira as regras do Firestore e tente novamente.');
+            }
+        }
+
+        function showAuthError(message) {
+            const box = document.getElementById('auth-error');
+            box.textContent = message;
+            box.classList.remove('hidden');
+        }
+
+        function friendlyAuthError(error) {
+            const messages = {
+                'auth/invalid-email': 'Digite um e-mail válido.',
+                'auth/user-not-found': 'Conta não encontrada. Confira o e-mail ou crie uma conta.',
+                'auth/wrong-password': 'Senha incorreta. Tente novamente.',
+                'auth/invalid-credential': 'E-mail ou senha incorretos.',
+                'auth/email-already-in-use': 'Este e-mail já possui uma conta. Faça login.',
+                'auth/weak-password': 'A senha precisa ter pelo menos 6 caracteres.',
+                'auth/too-many-requests': 'Muitas tentativas. Aguarde um pouco e tente novamente.',
+                'auth/network-request-failed': 'Falha de conexão. Verifique sua internet.'
+            };
+            return messages[error.code] || 'Não foi possível concluir. Confira os dados e tente novamente.';
+        }
+
+        function initAuthUI() {
+            const form = document.getElementById('auth-form');
+            const submit = document.getElementById('auth-submit');
+            const create = document.getElementById('auth-create');
+            const reset = document.getElementById('auth-reset');
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                document.getElementById('auth-error').classList.add('hidden');
+                const email = document.getElementById('auth-email').value.trim();
+                const password = document.getElementById('auth-password').value;
+                submit.disabled = true;
+                submit.textContent = 'Aguarde...';
+                try {
+                    await auth.signInWithEmailAndPassword(email, password);
+                } catch (error) {
+                    showAuthError(friendlyAuthError(error));
+                } finally {
+                    submit.disabled = false;
+                    submit.textContent = 'Entrar';
+                }
+            });
+            create.addEventListener('click', async () => {
+                document.getElementById('auth-error').classList.add('hidden');
+                const email = document.getElementById('auth-email').value.trim();
+                const password = document.getElementById('auth-password').value;
+                if (!email || !password) return showAuthError('Informe seu e-mail e uma senha com pelo menos 6 caracteres.');
+                try {
+                    await auth.createUserWithEmailAndPassword(email, password);
+                } catch (error) {
+                    showAuthError(friendlyAuthError(error));
+                }
+            });
+            reset.addEventListener('click', async () => {
+                document.getElementById('auth-error').classList.add('hidden');
+                const email = document.getElementById('auth-email').value.trim();
+                if (!email) return showAuthError('Digite seu e-mail para receber o link de recuperação.');
+                try {
+                    await auth.sendPasswordResetEmail(email);
+                    showAuthError('Enviamos um link de recuperação para seu e-mail.');
+                    document.getElementById('auth-error').className = 'mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300';
+                } catch (error) {
+                    showAuthError(friendlyAuthError(error));
+                }
+            });
+            document.getElementById('btn-logout').addEventListener('click', () => auth.signOut());
         }
 
         function showToast(msg) {
@@ -1119,7 +1300,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const monthlyInvest = state.investmentConfig.monthly;
 
             const freeBalance = state.income - (totalBills + totalDebtsPay);
-            const committedPct = Math.round(((totalBills + totalDebtsPay) / state.income) * 100);
+            const committedPct = Math.round(((totalBills + totalDebtsPay) / Math.max(state.income, 1)) * 100);
 
             document.getElementById('hdr-income').innerText = formatBRL(state.income);
             document.getElementById('hdr-free-balance').innerText = formatBRL(freeBalance);
@@ -1134,9 +1315,9 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             document.getElementById('card-free-balance').innerText = formatBRL(freeBalance);
             document.getElementById('pct-committed').innerText = `${committedPct}% comprometido`;
 
-            const billsPct = Math.round((totalBills / state.income) * 100);
-            const debtsPct = Math.round((totalDebtsPay / state.income) * 100);
-            const investPct = Math.round((monthlyInvest / state.income) * 100);
+            const billsPct = Math.round((totalBills / Math.max(state.income, 1)) * 100);
+            const debtsPct = Math.round((totalDebtsPay / Math.max(state.income, 1)) * 100);
+            const investPct = Math.round((monthlyInvest / Math.max(state.income, 1)) * 100);
             const freePct = Math.max(0, 100 - (billsPct + debtsPct + investPct));
 
             document.getElementById('bar-bills').style.width = `${billsPct}%`;
@@ -1656,7 +1837,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         window.addEventListener('DOMContentLoaded', () => {
-            loadAppData();
+            initAuthUI();
             initTabs();
             initBudgetChart();
             initInvestChart();
@@ -1664,7 +1845,17 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             initModals();
             initAlexaSimulator();
             initGeminiSimulator();
-            recalculate();
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    await loadUserData(user);
+                } else {
+                    currentUser = null;
+                    resetStateForNewUser();
+                    document.getElementById('account-email').textContent = '';
+                    document.getElementById('auth-overlay').classList.remove('hidden');
+                    recalculate();
+                }
+            });
         });
     </script>
 </body>
