@@ -1443,7 +1443,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             } catch (error) {
                 console.error('Erro ao carregar dados da conta:', error);
                 document.getElementById('auth-overlay').classList.remove('hidden');
-                showAuthError('Não foi possível carregar seus dados. Confira as regras do Firestore e tente novamente.');
+                showAuthError('Login aceito, mas houve erro ao carregar os dados (' + (error?.code || 'desconhecido') + '). Não altere os registros até resolver.');
             }
         }
 
@@ -1462,9 +1462,14 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 'auth/email-already-in-use': 'Este e-mail já possui uma conta. Faça login.',
                 'auth/weak-password': 'A senha precisa ter pelo menos 6 caracteres.',
                 'auth/too-many-requests': 'Muitas tentativas. Aguarde um pouco e tente novamente.',
-                'auth/network-request-failed': 'Falha de conexão. Verifique sua internet.'
+                'auth/network-request-failed': 'Falha de conexão. Verifique sua internet.',
+                'auth/operation-not-allowed': 'Login por e-mail desativado no Firebase.',
+                'auth/unauthorized-domain': 'Este endereço do site não está autorizado no Firebase.',
+                'auth/invalid-api-key': 'Configuração de autenticação inválida. Avise o administrador.',
+                'auth/user-disabled': 'Esta conta foi desativada. Contate o administrador.',
+                'auth/internal-error': 'Falha interna na autenticação. Tente novamente.'
             };
-            return messages[error.code] || 'Não foi possível concluir. Confira os dados e tente novamente.';
+            return messages[error.code] || ('Não foi possível concluir o acesso (' + (error?.code || 'erro desconhecido') + ').');
         }
 
         function initAuthUI() {
@@ -1479,8 +1484,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const password = document.getElementById('auth-password').value;
                 submit.disabled = true;
                 submit.textContent = 'Aguarde...';
+                showAuthError('Verificando seu e-mail e senha...');
                 try {
                     await auth.signInWithEmailAndPassword(email, password);
+                    showAuthError('Login confirmado. Carregando seus dados...');
                 } catch (error) {
                     showAuthError(friendlyAuthError(error));
                 } finally {
@@ -2713,14 +2720,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 if (box) { box.textContent = 'Erro ao iniciar o login. Atualize a página (Ctrl+F5).'; box.classList.remove('hidden'); }
             }
             try { initLanguageSelector(); } catch (error) { console.error('Falha na tradução:', error); }
-            initTabs();
-            initBudgetChart();
-            initInvestChart();
-            initHistoryChart();
-            initAmortizationTracking();
-            initModals();
-            initAlexaSimulator();
-            initGeminiSimulator();
+            // Registra o observador antes de módulos secundários: erros em gráficos/IA
+            // não devem impedir que usuários existentes consigam entrar.
             auth.onAuthStateChanged(async (user) => {
                 if (user) {
                     await loadUserData(user);
@@ -2729,9 +2730,17 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     resetStateForNewUser();
                     document.getElementById('account-email').textContent = '';
                     document.getElementById('auth-overlay').classList.remove('hidden');
-                    recalculate();
+                    try { recalculate(); } catch (error) { console.error('Erro ao atualizar tela:', error); }
                 }
-            });
+            }, error => showAuthError(friendlyAuthError(error)));
+            for (const [name, initialize] of [
+                ['abas', initTabs], ['gráficos', initBudgetChart],
+                ['investimentos', initInvestChart], ['histórico', initHistoryChart],
+                ['amortização', initAmortizationTracking], ['formulários', initModals],
+                ['Alexa', initAlexaSimulator], ['Gemini', initGeminiSimulator]
+            ]) {
+                try { initialize(); } catch (error) { console.error('Erro ao iniciar ' + name, error); }
+            }
         });
     </script>
 </body>
