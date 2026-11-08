@@ -1338,7 +1338,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 bills: state.bills,
                 debts: state.debts,
                 investmentConfig: state.investmentConfig,
-                monthlyInvestments: state.monthlyInvestments,
+                monthlyInvestments: {...(state.monthlyInvestments || {})},
+                monthlyAmortizations: {...(state.monthlyAmortizations || {})},
                 aiPayoffPlan: state.aiPayoffPlan,
                 monthlyAmortizations: state.monthlyAmortizations,
                 appliedAmortizations: state.appliedAmortizations
@@ -1380,6 +1381,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             } catch (error) {
                 console.warn('Não foi possível salvar os dados localmente.', error);
             }
+            // Mantém o resumo Gemini sincronizado com cada registro salvo.
+            window.fincontrolRefreshGeminiOverview?.();
             if (currentUser) {
                 clearTimeout(cloudSaveTimer);
                 cloudSaveTimer = setTimeout(async () => {
@@ -2459,8 +2462,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             };
             window.fincontrolRefreshGeminiOverview = renderGeminiOverview;
             renderGeminiOverview();
-            window.fincontrolRunAutoGeminiAnalysis = async () => {
-                if (!currentUser || !autoCheckbox.checked || busy || lastAutomaticUid === currentUser.uid) return;
+            window.fincontrolRunAutoGeminiAnalysis = async (force = false) => {
+                if (!currentUser || (!autoCheckbox.checked && !force) || busy || (!force && lastAutomaticUid === currentUser.uid)) return;
                 const uid = currentUser.uid;
                 renderGeminiOverview();
                 lastAutomaticUid = uid;
@@ -2468,7 +2471,13 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 try {
                     const model = await getModel();
                     if (!currentUser || currentUser.uid !== uid) { status.remove(); return; }
-                    const prompt = 'Organize sua resposta em cinco seções com títulos claros: Receitas, Despesas, Dívidas, Investimentos e Recomendações. Faça um diagnóstico financeiro breve e objetivo em português brasileiro com base EXCLUSIVAMENTE nos dados JSON seguintes. Informe renda, contas, dívidas, metas de investimento e amortização, diferenças entre realizado e planejado, riscos e até três sugestões. Não assuma despesas variáveis ausentes como zero real. Não recomende com certeza investimentos sem avaliar riscos e taxas. Responda somente com texto, nunca JSON de ação. Não altere nenhum dado. Dados: ' + JSON.stringify(snapshot());
+                    const currentMonth = new Date().toISOString().slice(0,7);
+                const financialData = snapshot();
+                const planGoals = financialData.aiPayoffPlan || {};
+                const actualInvest = Number(financialData.monthlyInvestments?.[currentMonth]) || 0;
+                const actualExtra = Number(financialData.monthlyAmortizations?.[currentMonth]) || 0;
+                const tracking = {mes:currentMonth,investimentoRealizado:actualInvest,investimentoPlanejado:Number(planGoals.monthlyInvestment ?? financialData.investmentConfig?.monthly)||0,amortizacaoExtraRegistrada:actualExtra,amortizacaoExtraPlanejada:Number(planGoals.monthlyExtraPayment)||0};
+                const prompt = 'Organize sua resposta em cinco seções com títulos claros: Receitas, Despesas, Dívidas, Investimentos e Recomendações. Faça um diagnóstico financeiro breve e objetivo em português brasileiro com base EXCLUSIVAMENTE nos dados JSON seguintes. Informe renda, contas, dívidas, metas de investimento e amortização, diferenças entre realizado e planejado, riscos e até três sugestões. Não assuma despesas variáveis ausentes como zero real. Não recomende com certeza investimentos sem avaliar riscos e taxas. Responda somente com texto, nunca JSON de ação. Não altere nenhum dado. Compare as metas com os registros do mês informado, destaque o que ainda falta para cada meta e recomende ajustes prudentes, sem tratar metas futuras como atrasos já ocorridos. Dados: ' + JSON.stringify({financeiro:financialData,acompanhamentoMensal:tracking});
                     const result = await model.generateContent(prompt);
                     if (!currentUser || currentUser.uid !== uid) { status.remove(); return; }
                     status.remove();
@@ -2482,6 +2491,12 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     lastAutomaticUid = null;
                 }
             };
+            const refreshDiagnosis = document.createElement('button');
+            refreshDiagnosis.type = 'button';
+            refreshDiagnosis.className = 'mt-2 rounded-lg border border-purple-700 px-3 py-2 text-xs font-semibold text-purple-200 hover:bg-purple-900';
+            refreshDiagnosis.textContent = 'Atualizar diagnóstico com meus registros';
+            refreshDiagnosis.addEventListener('click', () => window.fincontrolRunAutoGeminiAnalysis?.(true));
+            overview.insertAdjacentElement('afterend', refreshDiagnosis);
             // Atalhos de planejamento: o Gemini apenas propõe; validateAction e
             // window.confirm continuam obrigatórios antes de qualquer gravação.
             const actionBar = document.createElement('div');
