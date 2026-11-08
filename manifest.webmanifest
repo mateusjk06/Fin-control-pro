@@ -1,0 +1,19 @@
+{
+  "name": "FinControl Pro",
+  "short_name": "FinControl",
+  "description": "Controle financeiro pessoal com assistente por voz",
+  "start_url": "./?assistente=1",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "pt-BR",
+  "shortcuts": [
+    {
+      "name": "Assistente financeiro por voz",
+      "short_name": "Falar com Gemini",
+      "description": "Abrir o assistente do FinControl Pro",
+      "url": "./?assistente=1"
+    }
+  ]
+}
