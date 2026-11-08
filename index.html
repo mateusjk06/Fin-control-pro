@@ -214,6 +214,13 @@
                 </div>
 
                 <div id="account-controls" class="flex items-center gap-3">
+                    <label for="language-select" class="sr-only">Idioma</label>
+                    <select id="language-select" aria-label="Idioma" class="rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-xs text-slate-200">
+                        <option value="pt">🇧🇷 Português</option>
+                        <option value="en">🇺🇸 English</option>
+                        <option value="es">🇪🇸 Español</option>
+                        <option value="it">🇮🇹 Italiano</option>
+                    </select>
                     <span id="account-email" class="hidden max-w-[160px] truncate text-xs text-slate-400 sm:inline"></span>
                     <button id="btn-logout" type="button" class="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:border-rose-500 hover:text-rose-300">
                         <i class="fa-solid fa-right-from-bracket mr-1"></i>Sair
@@ -983,6 +990,118 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
     <!-- JavaScript Application State & Logic -->
     <script>
+
+        // Idioma escolhido neste navegador/dispositivo; não altera os dados financeiros da conta.
+        const LANGUAGE_KEY = 'fincontrol-language';
+        const UI_TRANSLATIONS = {
+            en: {
+                'Idioma':'Language','Sair':'Log out','Controle Financeiro • Alexa • Gemini AI':'Financial Control • Alexa • Gemini AI',
+                'Entre ou crie sua conta para acessar seu controle financeiro.':'Sign in or create an account to access your financial dashboard.',
+                'Senha':'Password','Entrar':'Sign in','Criar conta':'Create account','Esqueci a senha':'Forgot password',
+                'Seus dados financeiros ficam privados na sua conta.':'Your financial data stays private in your account.',
+                'Mínimo de 6 caracteres':'At least 6 characters','Aguarde...':'Please wait...',
+                'Renda Mensal':'Monthly Income','Saldo Livre':'Available Balance','Contas & Dívidas':'Bills & Debts',
+                'Análise mensal':'Monthly Analysis','Cronograma de Investimentos':'Investment Schedule',
+                'Integração Alexa':'Alexa Integration','Integração Gemini AI':'Gemini AI Integration',
+                'Contas Fixas / Mês':'Fixed Bills / Month','Parcelas de Dívidas':'Debt Payments',
+                'Saldo Livre / Mês':'Available Balance / Month','Sua entrada bruta cadastrada':'Your registered gross income',
+                'pendentes este mês':'pending this month','Saldo devedor total:':'Total outstanding debt:',
+                'Disponível para aportes & reservas':'Available for investments & savings',
+                'Comprometimento da Renda Mensal':'Monthly Income Commitment','comprometido':'committed',
+                'Contas Fixas':'Fixed Bills','Operação realizada com sucesso!':'Operation completed successfully!',
+                'Adicionar conta':'Add bill','Nova dívida':'New debt','Salvar':'Save','Cancelar':'Cancel',
+                'Editar':'Edit','Excluir':'Delete','Pago':'Paid','Pendente':'Pending','Descrição':'Description',
+                'Valor':'Amount','Data':'Date','Categoria':'Category','Total':'Total','Mês':'Month',
+                'Investimentos':'Investments','Renda':'Income','Despesas':'Expenses','Dívidas':'Debts',
+                'Configurações':'Settings','Português':'Portuguese'
+            },
+            es: {
+                'Idioma':'Idioma','Sair':'Cerrar sesión','Controle Financeiro • Alexa • Gemini AI':'Control financiero • Alexa • Gemini AI',
+                'Entre ou crie sua conta para acessar seu controle financeiro.':'Inicia sesión o crea una cuenta para acceder a tu control financiero.',
+                'Senha':'Contraseña','Entrar':'Entrar','Criar conta':'Crear cuenta','Esqueci a senha':'Olvidé mi contraseña',
+                'Seus dados financeiros ficam privados na sua conta.':'Tus datos financieros permanecen privados en tu cuenta.',
+                'Mínimo de 6 caracteres':'Mínimo de 6 caracteres','Aguarde...':'Espera...',
+                'Renda Mensal':'Ingreso mensual','Saldo Livre':'Saldo disponible','Contas & Dívidas':'Cuentas y deudas',
+                'Análise mensal':'Análisis mensual','Cronograma de Investimentos':'Plan de inversiones',
+                'Integração Alexa':'Integración con Alexa','Integração Gemini AI':'Integración con Gemini AI',
+                'Contas Fixas / Mês':'Gastos fijos / mes','Parcelas de Dívidas':'Cuotas de deudas',
+                'Saldo Livre / Mês':'Saldo disponible / mes','Sua entrada bruta cadastrada':'Tus ingresos brutos registrados',
+                'pendentes este mês':'pendientes este mes','Saldo devedor total:':'Deuda total pendiente:',
+                'Disponível para aportes & reservas':'Disponible para inversiones y ahorros',
+                'Comprometimento da Renda Mensal':'Compromiso del ingreso mensual','comprometido':'comprometido',
+                'Contas Fixas':'Gastos fijos','Operação realizada com sucesso!':'¡Operación realizada correctamente!',
+                'Adicionar conta':'Añadir cuenta','Nova dívida':'Nueva deuda','Salvar':'Guardar','Cancelar':'Cancelar',
+                'Editar':'Editar','Excluir':'Eliminar','Pago':'Pagado','Pendente':'Pendiente','Descrição':'Descripción',
+                'Valor':'Importe','Data':'Fecha','Categoria':'Categoría','Total':'Total','Mês':'Mes',
+                'Investimentos':'Inversiones','Renda':'Ingresos','Despesas':'Gastos','Dívidas':'Deudas',
+                'Configurações':'Configuración','Português':'Portugués'
+            },
+            it: {
+                'Idioma':'Lingua','Sair':'Esci','Controle Financeiro • Alexa • Gemini AI':'Controllo finanziario • Alexa • Gemini AI',
+                'Entre ou crie sua conta para acessar seu controle financeiro.':'Accedi o crea un account per gestire le tue finanze.',
+                'Senha':'Password','Entrar':'Accedi','Criar conta':'Crea account','Esqueci a senha':'Password dimenticata',
+                'Seus dados financeiros ficam privados na sua conta.':'I tuoi dati finanziari restano privati nel tuo account.',
+                'Mínimo de 6 caracteres':'Almeno 6 caratteri','Aguarde...':'Attendere...',
+                'Renda Mensal':'Entrate mensili','Saldo Livre':'Saldo disponibile','Contas & Dívidas':'Conti e debiti',
+                'Análise mensal':'Analisi mensile','Cronograma de Investimentos':'Piano degli investimenti',
+                'Integração Alexa':'Integrazione Alexa','Integração Gemini AI':'Integrazione Gemini AI',
+                'Contas Fixas / Mês':'Spese fisse / mese','Parcelas de Dívidas':'Rate dei debiti',
+                'Saldo Livre / Mês':'Saldo disponibile / mese','Sua entrada bruta cadastrada':'Le tue entrate lorde registrate',
+                'pendentes este mês':'in sospeso questo mese','Saldo devedor total:':'Debito residuo totale:',
+                'Disponível para aportes & reservas':'Disponibile per investimenti e risparmi',
+                'Comprometimento da Renda Mensal':'Impegno del reddito mensile','comprometido':'impegnato',
+                'Contas Fixas':'Spese fisse','Operação realizada com sucesso!':'Operazione completata con successo!',
+                'Adicionar conta':'Aggiungi conto','Nova dívida':'Nuovo debito','Salvar':'Salva','Cancelar':'Annulla',
+                'Editar':'Modifica','Excluir':'Elimina','Pago':'Pagato','Pendente':'In sospeso','Descrição':'Descrizione',
+                'Valor':'Importo','Data':'Data','Categoria':'Categoria','Total':'Totale','Mês':'Mese',
+                'Investimentos':'Investimenti','Renda':'Entrate','Despesas':'Spese','Dívidas':'Debiti',
+                'Configurações':'Impostazioni','Português':'Portoghese'
+            }
+        };
+        let activeLanguage = localStorage.getItem(LANGUAGE_KEY) || 'pt';
+        if (!['pt','en','es','it'].includes(activeLanguage)) activeLanguage = 'pt';
+        function translateUiText(value, language) {
+            const text = String(value || '');
+            const trimmed = text.trim();
+            if (!trimmed) return text;
+            let canonical = trimmed;
+            for (const dict of Object.values(UI_TRANSLATIONS)) {
+                const found = Object.keys(dict).find(key => dict[key] === canonical);
+                if (found) { canonical = found; break; }
+            }
+            const translated = language === 'pt' ? canonical : (UI_TRANSLATIONS[language]?.[canonical] || canonical);
+            return text.replace(trimmed, translated);
+        }
+        function applyLanguage(language) {
+            activeLanguage = ['pt','en','es','it'].includes(language) ? language : 'pt';
+            localStorage.setItem(LANGUAGE_KEY, activeLanguage);
+            document.documentElement.lang = ({pt:'pt-BR',en:'en',es:'es',it:'it'})[activeLanguage];
+            document.querySelectorAll('body *').forEach(element => {
+                if (element.children.length === 0 && element.id !== 'account-email' && element.tagName !== 'SCRIPT' && element.tagName !== 'STYLE') {
+                    if (element.childNodes.length === 1 && element.firstChild.nodeType === Node.TEXT_NODE) {
+                        element.firstChild.nodeValue = translateUiText(element.firstChild.nodeValue, activeLanguage);
+                    }
+                }
+                ['placeholder','title','aria-label'].forEach(attr => {
+                    if (element.hasAttribute(attr)) element.setAttribute(attr, translateUiText(element.getAttribute(attr), activeLanguage));
+                });
+            });
+            const picker = document.getElementById('language-select');
+            if (picker && picker.value !== activeLanguage) picker.value = activeLanguage;
+        }
+        function initLanguageSelector() {
+            const picker = document.getElementById('language-select');
+            if (picker) picker.addEventListener('change', () => applyLanguage(picker.value));
+            applyLanguage(activeLanguage);
+            const observer = new MutationObserver(() => {
+                if (observer._busy) return;
+                observer._busy = true;
+                applyLanguage(activeLanguage);
+                observer._busy = false;
+            });
+            observer.observe(document.body, {childList:true,subtree:true,characterData:true});
+        }
+
         const state = {
             income: 5000.0,
             bills: [
@@ -1144,6 +1263,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         function initAuthUI() {
+            initLanguageSelector();
             const form = document.getElementById('auth-form');
             const submit = document.getElementById('auth-submit');
             const create = document.getElementById('auth-create');
