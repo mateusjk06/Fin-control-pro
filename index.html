@@ -2077,6 +2077,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     sum + (Array.isArray(debt.schedule) ? debt.schedule.reduce((a, p) =>
                         a + (p.paid && String(p.paidAt || '').slice(0,7) === monthKey
                             ? Math.max(0, Number(p.paidValue ?? p.value) || 0) : 0), 0) : 0), 0);
+                // A confirmed installment remains a real expense even after the debt is fully paid.
+                debtPay = Math.max(debtPay, paidDebtThisMonth);
                 const hasActualInvestment = Object.prototype.hasOwnProperty.call(state.monthlyInvestments || {}, monthKey);
                 const isFuture = dt > new Date(now.getFullYear(), now.getMonth(), 1);
                 const monthlyInvestment = hasActualInvestment
@@ -2395,9 +2397,9 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                         }))
                         : []);
                 schedule.forEach((payment, index) => {
-                    if (payment.paid || index < paidCount) return;
+                    if (payment.paid) return;
                     const date = parseDay(debt.nextDueDate
-                        ? addMonths(debt.nextDueDate, index - paidCount)
+                        ? addMonths(debt.nextDueDate, index - Math.max(0, debtPendingIndex(debt)))
                         : payment.date);
                     if (!isUpcoming(date)) return;
                     items.push({
@@ -2703,13 +2705,14 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
         function debtPendingIndex(debt) {
             if (!Array.isArray(debt.schedule)) return -1;
-            return debt.schedule.findIndex((p, i) => i >= Math.max(0, Number(debt.paidCount) || 0) && !p.paid);
+            return debt.schedule.findIndex(p => !p.paid);
         }
         function updateDebtPaymentTotals(debt) {
             if (!Array.isArray(debt.schedule)) return;
             // Preserve legacy accounting: the scheduled balance reflects installments still unpaid,
             // while actual paid amounts are stored separately (they may include interest/fees).
-            debt.paidCount = debt.schedule.filter(p => p.paid).length;
+            debt.paidCount = debt.schedule.findIndex(p => !p.paid);
+            if (debt.paidCount < 0) debt.paidCount = debt.schedule.length;
             debt.balance = Math.round(debt.schedule.reduce((sum, p) => sum + (p.paid ? 0 : Math.max(0, Number(p.value) || 0)), 0) * 100) / 100;
             const nextIndex = debtPendingIndex(debt);
             debt.nextDueDate = nextIndex >= 0 ? (debt.schedule[nextIndex].date || '') : '';
