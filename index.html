@@ -2331,6 +2331,68 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const sim = document.getElementById('sim-extra-pay');
             if (sim && document.activeElement !== sim) sim.value = plan.monthlyExtraPayment;
         }
+
+        const DEBT_DELETE_TEXT = {
+            pt: {
+                edit:'Editar',remove:'Excluir',missing:'Dívida não encontrada. Atualize a página.',
+                applied:'Esta dívida possui amortizações já aplicadas ao saldo e não pode ser excluída diretamente. Revise o histórico de amortizações antes de corrigir o cadastro.',
+                confirm:'Excluir a dívida "{name}" com saldo de {balance}?{plan} Esta ação apaga somente o cadastro no FinControl Pro; não quita nem cancela a dívida no banco.',
+                plan:' O plano Gemini vinculado a esta dívida também será removido; os aportes e o histórico de amortizações permanecerão registrados.',
+                success:'Dívida excluída. Resumos e análises atualizados.'
+            },
+            it: {
+                edit:'Modifica',remove:'Elimina',missing:'Debito non trovato. Aggiorna la pagina.',
+                applied:'Questo debito ha rimborsi anticipati già applicati al saldo e non può essere eliminato direttamente. Controlla lo storico dei rimborsi prima di correggere il registro.',
+                confirm:'Eliminare il debito "{name}" con saldo di {balance}?{plan} Si elimina solo il registro in FinControl Pro: il debito presso la banca non viene estinto o annullato.',
+                plan:' Il piano Gemini collegato sarà eliminato; i versamenti e lo storico dei rimborsi resteranno registrati.',
+                success:'Debito eliminato. Riepiloghi e analisi aggiornati.'
+            },
+            en: {
+                edit:'Edit',remove:'Delete',missing:'Debt not found. Refresh the page.',
+                applied:'This debt has extra repayments already applied to its balance and cannot be deleted directly. Review the repayment history before correcting this record.',
+                confirm:'Delete debt "{name}" with a balance of {balance}?{plan} This only removes the record from FinControl Pro; it does not settle or cancel a debt at the bank.',
+                plan:' Its linked Gemini plan will also be removed; investment entries and repayment history will remain.',
+                success:'Debt deleted. Summaries and analyses updated.'
+            },
+            es: {
+                edit:'Editar',remove:'Eliminar',missing:'Deuda no encontrada. Actualiza la página.',
+                applied:'Esta deuda tiene amortizaciones ya aplicadas al saldo y no se puede eliminar directamente. Revisa el historial de amortizaciones antes de corregir el registro.',
+                confirm:'¿Eliminar la deuda "{name}" con un saldo de {balance}?{plan} Solo se borra el registro de FinControl Pro; no se cancela ni liquida la deuda bancaria.',
+                plan:' También se eliminará el plan Gemini vinculado; se conservarán los aportes y el historial de amortizaciones.',
+                success:'Deuda eliminada. Resúmenes y análisis actualizados.'
+            }
+        };
+        function debtDeleteText(key) { return (DEBT_DELETE_TEXT[activeLanguage] || DEBT_DELETE_TEXT.pt)[key]; }
+        function deleteDebt(id) {
+            const debt = state.debts.find(item => String(item.id) === String(id));
+            if (!debt) { showToast(debtDeleteText('missing')); return; }
+            // Evita deixar registros de pagamentos já abatidos sem a dívida correspondente.
+            const hasApplied = Object.values(state.appliedAmortizations || {}).some(
+                record => record && String(record.debtId) === String(debt.id)
+            );
+            if (hasApplied) {
+                window.alert(debtDeleteText('applied'));
+                return;
+            }
+            const linkedPlan = !!(state.aiPayoffPlan &&
+                String(state.aiPayoffPlan.debtId) === String(debt.id));
+            const message = debtDeleteText('confirm')
+                .replace('{name}', String(debt.desc || ''))
+                .replace('{balance}', formatBRL(Number(debt.balance) || 0))
+                .replace('{plan}', linkedPlan ? debtDeleteText('plan') : '');
+            if (!window.confirm(message)) return;
+            state.debts = state.debts.filter(item => String(item.id) !== String(debt.id));
+            if (linkedPlan) state.aiPayoffPlan = null;
+            if (editingDebtId !== null && String(editingDebtId) === String(debt.id)) {
+                editingDebtId = null;
+                const modal = document.getElementById('modal-debt');
+                modal?.classList.add('hidden');
+                modal?.classList.remove('flex');
+            }
+            recalculate(); // Atualiza painel, análise mensal, metas e persiste no Firebase.
+            showToast(debtDeleteText('success'));
+        }
+
         function renderDebtsList() {
             renderPayoffPlan();
             const container = document.getElementById('debts-list-container');
@@ -2352,9 +2414,14 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                             <p class="text-[10px] text-slate-500 uppercase">Parcela Mínima</p>
                             <p class="font-bold text-xs text-slate-200">${formatBRL(d.minPayment)}/mês</p>
                         </div>
-                        <button type="button" onclick="editDebt(${Number(d.id)})" class="px-3 py-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-pen-to-square mr-1"></i> Editar</button>
+                        <div class="flex flex-wrap justify-end gap-2">
+                            <button type="button" class="debt-edit-action px-3 py-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-pen-to-square mr-1" aria-hidden="true"></i>${debtDeleteText('edit')}</button>
+                            <button type="button" class="debt-delete-action px-3 py-2 rounded-lg bg-rose-600/10 hover:bg-rose-600/25 text-rose-300 text-xs font-semibold border border-rose-500/40"><i class="fa-solid fa-trash mr-1" aria-hidden="true"></i>${debtDeleteText('remove')}</button>
+                        </div>
                     </div>
                 `;
+                card.querySelector('.debt-edit-action').addEventListener('click', () => editDebt(d.id));
+                card.querySelector('.debt-delete-action').addEventListener('click', () => deleteDebt(d.id));
                 container.appendChild(card);
             });
         }
