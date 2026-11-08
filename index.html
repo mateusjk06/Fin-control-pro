@@ -3623,7 +3623,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const command=params.get('fincontrol_cmd');
                 const fromShortcut=params.get('assistente');
                 if(!command&&!fromShortcut)return;
-                history.replaceState(null,'',window.location.pathname+window.location.hash);
+                window.history.replaceState(null,'',window.location.pathname+window.location.hash);
                 if(command && command.length<=500)userInput.value=command;
                 document.querySelector('[data-tab="gemini"]')?.click();
                 if(command)voiceStatus.textContent='Comando recebido de outro aplicativo. Revise o texto antes de enviar ao Gemini.';
