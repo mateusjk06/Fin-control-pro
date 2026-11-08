@@ -1291,6 +1291,26 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 }
             }
         }
+        // Labels localizados; os valores de categoria permanecem em português
+        // no Firebase para preservar filtros, gráficos e registros existentes.
+        const BILL_CATEGORY_LABELS = {
+            Moradia: {pt:'Moradia', it:'Abitazione', en:'Housing', es:'Vivienda'},
+            'Serviços': {pt:'Serviços / Utilidades', it:'Servizi / utenze', en:'Utilities', es:'Servicios / suministros'},
+            'Alimentação': {pt:'Alimentação', it:'Alimentazione', en:'Food', es:'Alimentación'},
+            Transporte: {pt:'Transporte', it:'Trasporti', en:'Transportation', es:'Transporte'},
+            Assinaturas: {pt:'Assinaturas / Lazer', it:'Abbonamenti / tempo libero', en:'Subscriptions / leisure', es:'Suscripciones / ocio'}
+        };
+        function localizedBillCategory(value, language = activeLanguage) {
+            return BILL_CATEGORY_LABELS[value]?.[language] || translateUiText(value, language);
+        }
+        function refreshBillCategoryLabels() {
+            const select = document.getElementById('inp-bill-cat');
+            if (!select) return;
+            for (const option of select.options) {
+                const label = localizedBillCategory(option.value);
+                if (option.textContent !== label) option.textContent = label;
+            }
+        }
         function localizeGeminiCodeSamples(language) {
             const italianExamples = [
                 ['// Exemplo de integração usando Google GenAI SDK (JavaScript)', '// Esempio di integrazione con Google GenAI SDK (JavaScript)'],
@@ -1326,6 +1346,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 investChart.update('none');
             }
             translateLanguageNode(document.body);
+            refreshBillCategoryLabels();
             syncCurrencyPicker();
             localizeGeminiCodeSamples(activeLanguage);
             const picker = document.getElementById('language-select');
@@ -2122,7 +2143,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                         </div>
                         <div>
                             <p class="font-semibold text-xs text-slate-200">${b.desc}</p>
-                            <p class="text-[10px] text-slate-400">Vence em: ${b.date.split('-').reverse().join('/')} • ${b.cat}</p>
+                            <p class="text-[10px] text-slate-400">Vence em: ${b.date.split('-').reverse().join('/')} • ${localizedBillCategory(b.cat)}</p>
                         </div>
                     </div>
                     <span class="font-bold text-xs text-amber-400">${formatBRL(b.val)}</span>
@@ -2140,7 +2161,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 tr.className = 'hover:bg-slate-850 transition';
                 tr.innerHTML = `
                     <td class="py-3 px-4 font-medium text-slate-200">${b.desc}</td>
-                    <td class="py-3 px-4"><span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[11px]">${b.cat}</span></td>
+                    <td class="py-3 px-4"><span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[11px]">${localizedBillCategory(b.cat)}</span></td>
                     <td class="py-3 px-4">${b.date.split('-').reverse().join('/')}</td>
                     <td class="py-3 px-4 font-bold text-white">${formatBRL(b.val)}</td>
                     <td class="py-3 px-4">
@@ -2184,6 +2205,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 category.add(new Option(existing.cat, existing.cat));
                 category.value = existing.cat;
             }
+            refreshBillCategoryLabels();
             amount.value = existing ? (Number(existing.val) || 0) : '';
             const now = new Date();
             const localDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
