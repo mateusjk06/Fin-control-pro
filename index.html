@@ -2337,30 +2337,121 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
         function renderUpcomingBills() {
             const container = document.getElementById('dash-upcoming-list');
-            container.innerHTML = '';
+            if (!container) return;
+            container.replaceChildren();
 
-            const pending = state.bills.filter(b => !b.paid).slice(0, 3);
-            if (pending.length === 0) {
-                container.innerHTML = '<p class="text-xs text-emerald-400 py-2"><i class="fa-solid fa-circle-check mr-1"></i> Todas as contas deste mês estão pagas!</p>';
+            const language = ['pt', 'it', 'en', 'es'].includes(activeLanguage) ? activeLanguage : 'pt';
+            const labels = {
+                pt: { bill: 'Conta', debt: 'Dívida', due: 'Vence em', installment: 'Parcela', empty: 'Nenhuma conta ou parcela de dívida vence nos próximos 7 dias.' },
+                it: { bill: 'Spesa', debt: 'Debito', due: 'Scade il', installment: 'Rata', empty: 'Nessuna spesa o rata del debito scade nei prossimi 7 giorni.' },
+                en: { bill: 'Bill', debt: 'Debt', due: 'Due on', installment: 'Installment', empty: 'No bills or debt installments are due in the next 7 days.' },
+                es: { bill: 'Cuenta', debt: 'Deuda', due: 'Vence el', installment: 'Cuota', empty: 'No hay cuentas ni cuotas de deudas que venzan en los próximos 7 días.' }
+            }[language];
+            const locale = {pt:'pt-BR',it:'it-IT',en:'en-US',es:'es-ES'}[language];
+            // Compare local calendar days, not UTC timestamps, to avoid timezone shifts.
+            const today = new Date();
+            const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
+            const lastDay = new Date(todayDay);
+            lastDay.setDate(lastDay.getDate() + 7);
+            const parseDay = value => {
+                const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+                if (!match) return null;
+                const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12);
+                return date.getFullYear() === Number(match[1]) &&
+                    date.getMonth() === Number(match[2]) - 1 &&
+                    date.getDate() === Number(match[3]) ? date : null;
+            };
+            const isUpcoming = date => date && date >= todayDay && date <= lastDay;
+            const items = [];
+
+            (Array.isArray(state.bills) ? state.bills : []).forEach(bill => {
+                if (bill.paid) return;
+                const date = parseDay(bill.date);
+                if (!isUpcoming(date)) return;
+                items.push({
+                    type: 'bill', name: String(bill.desc || labels.bill),
+                    date, amount: Math.max(0, Number(bill.val) || 0),
+                    detail: localizedBillCategory(bill.cat)
+                });
+            });
+
+            (Array.isArray(state.debts) ? state.debts : []).forEach(debt => {
+                if (Number(debt.balance) <= 0) return;
+                const paidCount = Math.max(0, Number(debt.paidCount) || 0);
+                const count = Math.max(0, Number(debt.installmentCount) || 0);
+                const schedule = Array.isArray(debt.schedule) && debt.schedule.length
+                    ? debt.schedule
+                    : (debt.startDate && count
+                        ? Array.from({length: count}, (_, index) => ({
+                            number: index + 1,
+                            date: addMonths(debt.startDate, index),
+                            value: installmentForDebt(debt, index),
+                            paid: index < paidCount
+                        }))
+                        : []);
+                schedule.forEach((payment, index) => {
+                    if (payment.paid || index < paidCount) return;
+                    const date = parseDay(payment.date);
+                    if (!isUpcoming(date)) return;
+                    items.push({
+                        type: 'debt', name: String(debt.desc || labels.debt),
+                        date,
+                        amount: Math.max(0, Number(payment.value ?? installmentForDebt(debt, index)) || 0),
+                        detail: labels.installment + ' ' + (payment.number || index + 1) +
+                            (count ? '/' + count : '')
+                    });
+                });
+            });
+
+            // An identical account and installment registered in both sections is shown once.
+            const unique = new Set();
+            const upcoming = items.filter(item => {
+                const key = item.name.trim().toLocaleLowerCase() + '|' +
+                    item.date.getTime() + '|' + item.amount.toFixed(2);
+                if (unique.has(key)) return false;
+                unique.add(key);
+                return true;
+            }).sort((a, b) => a.date - b.date || a.name.localeCompare(b.name, locale));
+
+            if (!upcoming.length) {
+                const empty = document.createElement('p');
+                empty.className = 'text-xs text-emerald-400 py-2';
+                empty.textContent = labels.empty;
+                container.appendChild(empty);
                 return;
             }
 
-            pending.forEach(b => {
-                const item = document.createElement('div');
-                item.className = 'flex justify-between items-center bg-slate-950 p-3 rounded-lg border border-slate-800/80';
-                item.innerHTML = `
-                    <div class="flex items-center space-x-3">
-                        <div class="p-2 bg-amber-500/10 rounded-lg text-amber-400">
-                            <i class="fa-solid fa-calendar-day"></i>
-                        </div>
-                        <div>
-                            <p class="font-semibold text-xs text-slate-200">${b.desc}</p>
-                            <p class="text-[10px] text-slate-400">Vence em: ${b.date.split('-').reverse().join('/')} • ${localizedBillCategory(b.cat)}</p>
-                        </div>
-                    </div>
-                    <span class="font-bold text-xs text-amber-400">${formatBRL(b.val)}</span>
-                `;
-                container.appendChild(item);
+            upcoming.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'flex justify-between items-center gap-3 bg-slate-950 p-3 rounded-lg border border-slate-800/80';
+                const left = document.createElement('div');
+                left.className = 'flex items-center space-x-3 min-w-0';
+                const icon = document.createElement('div');
+                icon.className = item.type === 'debt'
+                    ? 'p-2 bg-rose-500/10 rounded-lg text-rose-400'
+                    : 'p-2 bg-amber-500/10 rounded-lg text-amber-400';
+                const symbol = document.createElement('i');
+                symbol.className = item.type === 'debt' ? 'fa-solid fa-credit-card' : 'fa-solid fa-calendar-day';
+                icon.appendChild(symbol);
+                const info = document.createElement('div');
+                info.className = 'min-w-0';
+                const title = document.createElement('p');
+                title.className = 'font-semibold text-xs text-slate-200 break-words';
+                title.textContent = item.name;
+                const detail = document.createElement('p');
+                detail.className = 'text-[10px] text-slate-400';
+                detail.textContent = labels.due + ': ' +
+                    item.date.toLocaleDateString(locale) + ' • ' +
+                    labels[item.type] + (item.detail ? ' • ' + item.detail : '');
+                info.append(title, detail);
+                left.append(icon, info);
+                const price = document.createElement('span');
+                price.className = item.type === 'debt'
+                    ? 'font-bold text-xs text-rose-400 whitespace-nowrap'
+                    : 'font-bold text-xs text-amber-400 whitespace-nowrap';
+                price.textContent = formatBRL(item.amount);
+                row.append(left, price);
+                container.appendChild(row);
             });
         }
 
