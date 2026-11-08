@@ -816,7 +816,7 @@ exports.handler = Alexa.SkillBuilders.custom()
                                 <div class="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs flex-shrink-0">G</div>
                                 <div class="bg-slate-950 border border-purple-500/20 rounded-xl p-3 text-slate-200 max-w-xl">
                                     <p class="font-semibold text-purple-300 mb-1">Gemini AI Advisor</p>
-                                    <p>Olá! Analisei seus dados financeiros atuais. Você tem <strong>R$ 5.000,00</strong> de renda mensal, com <strong>64%</strong> já comprometidos entre contas fixas e dívidas. Como posso otimizar suas finanças hoje?</p>
+                                    <p>Olá! Posso ajudar a analisar os dados financeiros cadastrados nesta conta. O que você gostaria de verificar?</p>
                                 </div>
                             </div>
                         </div>
@@ -1208,6 +1208,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             if (!UI_TRANSLATIONS.it[pt]) UI_TRANSLATIONS.it[pt] = it;
         }
 
+        // Complementi italiani per messaggi dinamici, obiettivi e interessi composti.
+        for (const [pt,it] of [["realizados de","effettuati su"],["planejados","previsti"],["realizados","effettuati"],["sem meta","senza obiettivo"],["Os percentuais usam somente registros deste mês.","Le percentuali si basano soltanto sulle registrazioni del mese corrente."],["Planejamento não significa pagamento realizado.","Il piano non equivale a un pagamento effettuato."],["A amortização registrada não confirma baixa bancária.","La registrazione di un rimborso anticipato non conferma un pagamento alla banca."],["Propor ajuste das metas","Proponi una modifica degli obiettivi"],["Revisar meu cronograma","Rivedi il mio piano"],["Enviar","Invia"],["Analisando seus dados...","Analisi dei dati in corso..."],["Nenhum dado foi alterado.","Nessun dato è stato modificato."],["Diagnóstico automático: analisando seus dados (sem alterar registros)...","Diagnosi automatica: analisi dei dati in corso (senza modificare le registrazioni)..."],["A API do Gemini permite análises contextuais em tempo real enviando a estrutura do seu aplicativo como um JSON no prompt do sistema.","L’API Gemini consente analisi contestuali in tempo reale utilizzando i dati dell’applicazione in formato JSON."],["Aporte Inicial (R$)","Versamento iniziale (R$)"],["Aporte Mensal (R$)","Versamento mensile (R$)"],["Prazo (Meses)","Durata (mesi)"],["Juros Compostos","Interessi composti"],["Juros ao mês (%)","Interessi mensili (%)"],["Saldo Inicial","Saldo iniziale"],["Saldo Bruto","Saldo lordo"],["Saldo Líquido Est.","Saldo netto stimato"],["Aliquota IR","Aliquota fiscale"],["Rendimento mês","Rendimento mensile"],["Saldo Final Líquido","Saldo finale netto"],["Imposto de Renda (Est.)","Imposta sul reddito (stima)"],["Total Investido (Aportes)","Totale investito (versamenti)"],["Saldo Total (Juros Compostos)","Saldo totale (interessi composti)"],["Sem registro","Nessuna registrazione"],["Mês do aporte","Mese del versamento"],["Salvar aporte do mês","Salva il versamento del mese"],["Meses com aporte registrado","Mesi con versamenti registrati"],["Histórico de aportes reais","Storico dei versamenti effettivi"],["Nenhum aporte registrado ainda.","Nessun versamento ancora registrato."],["Você","Tu"],["Você tem","Hai"],["Sua Pergunta","La tua domanda"],["Previsão","Previsione"],["Projeção","Proiezione"],["Investimentos projetados no período","Investimenti previsti nel periodo"],["Simule a rentabilidade do CDI composto mês a mês e visualize a curva de patrimônio.","Simula i rendimenti composti legati al CDI mese per mese e visualizza l’evoluzione del patrimonio."],["Investimentos:","Investimenti:"],["Amortização extra:","Rimborso anticipato extra:"]]) UI_TRANSLATIONS.it[pt] = it;
+
+        UI_TRANSLATIONS.it['Olá! Posso ajudar a analisar os dados financeiros cadastrados nesta conta. O que você gostaria de verificar?'] = 'Ciao! Posso aiutarti ad analizzare i dati finanziari registrati nel tuo account. Cosa desideri verificare?';
         // Mantém o texto original de cada elemento para permitir alternar idiomas sem perder conteúdo.
         const languageTextState = new WeakMap();
         const languageAttributeState = new WeakMap();
@@ -1274,6 +1278,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             if (typeof investChart !== 'undefined' && investChart) {
                 investChart.data.datasets[0].label = translateUiText('Total Investido (Aportes)', activeLanguage);
                 investChart.data.datasets[1].label = translateUiText('Saldo Total (Juros Compostos)', activeLanguage);
+                investChart.data.labels = investChart.data.labels.map((_, i) => formatInvestmentMonth(investmentMonthKeyOffset(i)).split(' ')[0]);
                 investChart.update('none');
             }
             translateLanguageNode(document.body);
@@ -2099,7 +2104,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
         function formatInvestmentMonth(key) {
             const parts = key.split('-').map(Number);
-            return new Date(parts[0], parts[1] - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            const locale = ({pt:'pt-BR',it:'it-IT',en:'en-US',es:'es-ES'})[activeLanguage] || 'pt-BR';
+            return new Date(parts[0], parts[1] - 1, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
         }
 
         function renderInvestmentAnalysis() {
@@ -2196,7 +2202,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     labels: [],
                     datasets: [
                         {
-                            label: 'Total Investido (Aportes)',
+                            label: translateUiText('Total Investido (Aportes)', activeLanguage),
                             data: [],
                             borderColor: '#94a3b8',
                             backgroundColor: 'rgba(148, 163, 184, 0.1)',
@@ -2204,7 +2210,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                             tension: 0.3
                         },
                         {
-                            label: 'Saldo Total (Juros Compostos)',
+                            label: translateUiText('Saldo Total (Juros Compostos)', activeLanguage),
                             data: [],
                             borderColor: '#10b981',
                             backgroundColor: 'rgba(16, 185, 129, 0.15)',
@@ -2230,6 +2236,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         function updateInvestChart(labels, invested, balance) {
             if (!investChart) return;
             investChart.data.labels = labels;
+            investChart.data.datasets[0].label = translateUiText('Total Investido (Aportes)', activeLanguage);
+            investChart.data.datasets[1].label = translateUiText('Saldo Total (Juros Compostos)', activeLanguage);
             investChart.data.datasets[0].data = invested;
             investChart.data.datasets[1].data = balance;
             investChart.update();
@@ -2314,7 +2322,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     const ai = sdk.getAI(modularApp, { backend: new sdk.GoogleAIBackend() });
                     return sdk.getGenerativeModel(ai, {
                         model: 'gemini-3-flash-preview',
-                        systemInstruction: 'Você é um assistente financeiro em português brasileiro. Use somente os dados fornecidos. Não invente saldos, juros, preços ou rendimentos. Não execute operações. Para solicitar mudanças, responda com JSON puro no formato {"message":"resumo curto","action":{"type":"add_bill|edit_bill|set_bill_paid|add_debt|edit_debt|set_income|record_investment|save_payoff_plan","id":numero opcional,"data":{...}}}. Para consultas, retorne texto normal. Uma única ação por resposta. Para editar contas: desc,cat,val,date,paid; dívidas: desc,balance,ratePct,minPayment; renda: value; investimentos: month (YYYY-MM),amount. Nunca proponha apagar dados ou transferir dinheiro. Se o usuário pedir para aplicar uma estratégia de quitação e investimento no aplicativo, proponha action type save_payoff_plan com data {debtId: número, monthlyInvestment: número >= 0, monthlyExtraPayment: número >= 0, months: inteiro entre 1 e 60, rationale: texto curto}. Use um id de dívida existente. Para save_payoff_plan, os campos monthlyInvestment e monthlyExtraPayment devem ser números JSON, months deve ser inteiro e rationale deve ter no máximo 150 caracteres. A soma das duas metas não pode exceder a renda menos contas e parcelas mínimas informadas. Considere que despesas variáveis não cadastradas reduzem a margem real. Não altere o saldo da dívida, nem registre pagamentos reais; o plano apenas define metas de aporte e amortização futura, sujeitas a confirmação.'
+                        systemInstruction: 'Você é um assistente financeiro. Responda sempre no idioma solicitado pelo usuário; use somente os dados fornecidos. Não invente saldos, juros, preços ou rendimentos. Não execute operações. Para solicitar mudanças, responda com JSON puro no formato {"message":"resumo curto","action":{"type":"add_bill|edit_bill|set_bill_paid|add_debt|edit_debt|set_income|record_investment|save_payoff_plan","id":numero opcional,"data":{...}}}. Para consultas, retorne texto normal. Uma única ação por resposta. Para editar contas: desc,cat,val,date,paid; dívidas: desc,balance,ratePct,minPayment; renda: value; investimentos: month (YYYY-MM),amount. Nunca proponha apagar dados ou transferir dinheiro. Se o usuário pedir para aplicar uma estratégia de quitação e investimento no aplicativo, proponha action type save_payoff_plan com data {debtId: número, monthlyInvestment: número >= 0, monthlyExtraPayment: número >= 0, months: inteiro entre 1 e 60, rationale: texto curto}. Use um id de dívida existente. Para save_payoff_plan, os campos monthlyInvestment e monthlyExtraPayment devem ser números JSON, months deve ser inteiro e rationale deve ter no máximo 150 caracteres. A soma das duas metas não pode exceder a renda menos contas e parcelas mínimas informadas. Considere que despesas variáveis não cadastradas reduzem a margem real. Não altere o saldo da dívida, nem registre pagamentos reais; o plano apenas define metas de aporte e amortização futura, sujeitas a confirmação.'
                     });
                 })().catch(error => { aiModelPromise = null; throw error; });
                 return aiModelPromise;
@@ -2536,7 +2544,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const actualInvest = Number(financialData.monthlyInvestments?.[currentMonth]) || 0;
                 const actualExtra = Number(financialData.monthlyAmortizations?.[currentMonth]) || 0;
                 const tracking = {mes:currentMonth,investimentoRealizado:actualInvest,investimentoPlanejado:Number(planGoals.monthlyInvestment ?? financialData.investmentConfig?.monthly)||0,amortizacaoExtraRegistrada:actualExtra,amortizacaoExtraPlanejada:Number(planGoals.monthlyExtraPayment)||0};
-                const prompt = 'Organize sua resposta em cinco seções com títulos claros: Receitas, Despesas, Dívidas, Investimentos e Recomendações. Faça um diagnóstico financeiro breve e objetivo em português brasileiro com base EXCLUSIVAMENTE nos dados JSON seguintes. Informe renda, contas, dívidas, metas de investimento e amortização, diferenças entre realizado e planejado, riscos e até três sugestões. Não assuma despesas variáveis ausentes como zero real. Não recomende com certeza investimentos sem avaliar riscos e taxas. Responda somente com texto, nunca JSON de ação. Não altere nenhum dado. Compare as metas com os registros do mês informado, destaque o que ainda falta para cada meta e recomende ajustes prudentes, sem tratar metas futuras como atrasos já ocorridos. Dados: ' + JSON.stringify({financeiro:financialData,acompanhamentoMensal:tracking});
+                const prompt = 'Organize sua resposta em cinco seções com títulos claros: Receitas, Despesas, Dívidas, Investimentos e Recomendações. Faça um diagnóstico financeiro breve e objetivo no idioma solicitado com base EXCLUSIVAMENTE nos dados JSON seguintes. Informe renda, contas, dívidas, metas de investimento e amortização, diferenças entre realizado e planejado, riscos e até três sugestões. Não assuma despesas variáveis ausentes como zero real. Não recomende com certeza investimentos sem avaliar riscos e taxas. Responda somente com texto, nunca JSON de ação. Não altere nenhum dado. Compare as metas com os registros do mês informado, destaque o que ainda falta para cada meta e recomende ajustes prudentes, sem tratar metas futuras como atrasos já ocorridos. Dados: ' + JSON.stringify({financeiro:financialData,acompanhamentoMensal:tracking});
                     const result = await model.generateContent('Responda exclusivamente em ' + ({pt:'português brasileiro',it:'italiano',en:'inglês',es:'espanhol'}[activeLanguage] || 'português brasileiro') + '.\\n' + prompt);
                     if (!currentUser || currentUser.uid !== uid) { status.remove(); return; }
                     status.remove();
