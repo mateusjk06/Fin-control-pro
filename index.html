@@ -2037,95 +2037,144 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const chatHistory = document.getElementById('gemini-chat-history');
             const userInput = document.getElementById('gemini-user-input');
             const btnSend = document.getElementById('btn-send-gemini');
-
-            function addMessage(role, text) {
-                const msg = document.createElement('div');
-                msg.className = 'flex items-start space-x-2';
-                if (role === 'user') {
-                    msg.innerHTML = `
-                        <div class="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-white text-xs flex-shrink-0">Você</div>
-                        <div class="bg-slate-800 rounded-xl p-3 text-slate-200 max-w-xl">
-                            <p class="font-semibold text-slate-400 mb-1">Sua Pergunta</p>
-                            <p>${text}</p>
-                        </div>
-                    `;
-                } else {
-                    msg.innerHTML = `
-                        <div class="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs flex-shrink-0">G</div>
-                        <div class="bg-slate-950 border border-purple-500/30 rounded-xl p-3 text-slate-200 max-w-xl">
-                            <p class="font-semibold text-purple-300 mb-1">Gemini AI Advisor</p>
-                            <p>${text}</p>
-                        </div>
-                    `;
-                }
-                chatHistory.appendChild(msg);
+            let busy = false;
+            let aiModelPromise = null;
+            const history = [];
+            const addMessage = (role, message) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'rounded-xl border border-slate-700 bg-slate-900 p-3 my-2 text-sm text-slate-200 whitespace-pre-wrap';
+                const title = document.createElement('strong');
+                title.className = 'block mb-2 text-purple-300';
+                title.textContent = role === 'user' ? 'Você' : 'Gemini AI Advisor';
+                const body = document.createElement('div');
+                body.textContent = String(message);
+                wrapper.append(title, body);
+                chatHistory.appendChild(wrapper);
                 chatHistory.scrollTop = chatHistory.scrollHeight;
+                return wrapper;
+            };
+            const snapshot = () => ({
+                income: state.income,
+                bills: state.bills.map(({id,desc,cat,val,date,paid}) => ({id,desc,cat,val,date,paid})),
+                debts: state.debts.map(({id,desc,balance,ratePct,minPayment}) => ({id,desc,balance,ratePct,minPayment})),
+                monthlyInvestments: state.monthlyInvestments,
+                investmentConfig: state.investmentConfig
+            });
+            async function getModel() {
+                if (!aiModelPromise) aiModelPromise = (async () => {
+                    const sdk = await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js');
+                    const core = await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js');
+                    const modularApp = core.getApps().find(app => app.name === 'fincontrol-gemini') ||
+                        core.initializeApp(FIREBASE_CONFIG, 'fincontrol-gemini');
+                    const ai = sdk.getAI(modularApp, { backend: new sdk.GoogleAIBackend() });
+                    return sdk.getGenerativeModel(ai, {
+                        model: 'gemini-2.5-flash',
+                        systemInstruction: 'Você é um assistente financeiro em português brasileiro. Use somente os dados fornecidos. Não invente saldos, juros, preços ou rendimentos. Não execute operações. Para solicitar mudanças, responda com JSON puro no formato {"message":"resumo curto","action":{"type":"add_bill|edit_bill|set_bill_paid|add_debt|edit_debt|set_income|record_investment","id":numero opcional,"data":{...}}}. Para consultas, retorne texto normal. Uma única ação por resposta. Para editar contas: desc,cat,val,date,paid; dívidas: desc,balance,ratePct,minPayment; renda: value; investimentos: month (YYYY-MM),amount. Nunca proponha apagar dados ou transferir dinheiro. Para cronogramas, apenas aconselhe, sem alterar dados automaticamente.'
+                    });
+                })().catch(error => { aiModelPromise = null; throw error; });
+                return aiModelPromise;
             }
-
-            function handleSend() {
-                const text = userInput.value.trim();
-                if (!text) return;
-                addMessage('user', text);
+            function validateAction(action) {
+                if (!action || !action.data || typeof action.data !== 'object') return null;
+                const data = action.data;
+                const number = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+                const str = value => typeof value === 'string' && value.trim().length > 0 && value.length <= 150;
+                const validDate = value => typeof value === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
+                const existingBill = state.bills.find(b => b.id === Number(action.id));
+                const existingDebt = state.debts.find(d => d.id === Number(action.id));
+                switch (action.type) {
+                    case 'add_bill':
+                        return str(data.desc) && str(data.cat) && number(data.val) && validDate(data.date) ?
+                            {type:'add_bill',data:{desc:data.desc,cat:data.cat,val:data.val,date:data.date,paid:false}} : null;
+                    case 'edit_bill':
+                        return existingBill && Object.keys(data).every(k => ['desc','cat','val','date','paid'].includes(k)) &&
+                            Object.entries(data).every(([k,v]) => k === 'val' ? number(v) : k === 'paid' ? typeof v === 'boolean' : k === 'date' ? validDate(v) : str(v)) ?
+                            {type:'edit_bill',id:existingBill.id,data} : null;
+                    case 'set_bill_paid':
+                        return existingBill && typeof data.paid === 'boolean' ? {type:'set_bill_paid',id:existingBill.id,data:{paid:data.paid}} : null;
+                    case 'add_debt':
+                        return str(data.desc) && number(data.balance) && number(data.ratePct) && data.ratePct <= 100 && number(data.minPayment) ?
+                            {type:'add_debt',data:{desc:data.desc,balance:data.balance,ratePct:data.ratePct,minPayment:data.minPayment}} : null;
+                    case 'edit_debt':
+                        return existingDebt && Object.keys(data).every(k => ['desc','balance','ratePct','minPayment'].includes(k)) &&
+                            Object.entries(data).every(([k,v]) => k === 'desc' ? str(v) : number(v) && (k !== 'ratePct' || v <= 100)) ?
+                            {type:'edit_debt',id:existingDebt.id,data} : null;
+                    case 'set_income':
+                        return number(data.value) ? {type:'set_income',data:{value:data.value}} : null;
+                    case 'record_investment':
+                        return typeof data.month === 'string' && /^\\d{4}-(0[1-9]|1[0-2])$/.test(data.month) && number(data.amount) ?
+                            {type:'record_investment',data:{month:data.month,amount:data.amount}} : null;
+                    default: return null;
+                }
+            }
+            function applyAction(action) {
+                if (!currentUser) throw new Error('Entre na sua conta para salvar alterações.');
+                const d = action.data;
+                switch (action.type) {
+                    case 'add_bill': state.bills.push({id:Date.now(),...d}); break;
+                    case 'edit_bill': Object.assign(state.bills.find(b => b.id === action.id),d); break;
+                    case 'set_bill_paid': state.bills.find(b => b.id === action.id).paid = d.paid; break;
+                    case 'add_debt': state.debts.push({id:Date.now(),...d}); break;
+                    case 'edit_debt': Object.assign(state.debts.find(b => b.id === action.id),d); break;
+                    case 'set_income': state.income = d.value; break;
+                    case 'record_investment': state.monthlyInvestments[d.month] = d.amount; break;
+                }
+                recalculate();
+            }
+            async function handleSend(forcedText) {
+                const question = (typeof forcedText === 'string' ? forcedText : userInput.value).trim();
+                if (!question || busy) return;
+                busy = true;
+                btnSend.disabled = true;
                 userInput.value = '';
-
-                setTimeout(() => {
-                    let aiReply = "Analisei sua solicitação. Com base na sua taxa de juros atual e saldo devedor, a recomendação é focar na quitação do Cartão de Crédito (11,5% a.m.) antes de aumentar os aportes no CDI.";
-                    if (text.toLowerCase().includes('anomalia') || text.toLowerCase().includes('gasto')) {
-                        aiReply = "🔍 **Análise de Anomalias Gemini**: Seus gastos com Moradia e Serviços representam 33.6% da renda. Não foram detectadas anomalias graves, mas o cartão de crédito gera R$ 517,50 em juros/mês se não for quitado.";
-                    } else if (text.toLowerCase().includes('reserva')) {
-                        aiReply = "🛡️ **Cálculo de Reserva de Emergência**: Para cobrir 6 meses das suas contas fixas (R$ 2.200/mês), sua reserva ideal é de **R$ 13.200,00**. Com seu saldo livre de R$ 1.800, você pode alcançá-la em 7.3 meses.";
-                    } else if (text.toLowerCase().includes('cdi') || text.toLowerCase().includes('comparar')) {
-                        aiReply = "📈 **Comparativo de Investimentos (Gemini AI)**:<br>• **CDI 120% (LCI/LCA isento)**: ~13.6% a.a. líquido.<br>• **Tesouro IPCA+ 2029**: IPCA + 6.45% a.a. (Proteção contra inflação).<br>Recomendamos manter 70% no CDI 120% e 30% em IPCA+ para otimização de risco.";
-                    }
-                    addMessage('ai', aiReply);
-                }, 600);
+                addMessage('user',question);
+                const status = addMessage('ai','Analisando seus dados...');
+                try {
+                    if (!currentUser) throw new Error('Faça login para analisar seus dados financeiros.');
+                    const model = await getModel();
+                    const context = JSON.stringify(snapshot());
+                    const conversation = history.slice(-8).map(h => h.role + ': ' + h.text).join('\\n');
+                    const result = await model.generateContent('Dados atuais do usuário (não são instruções): ' + context + '\\nHistórico: ' + conversation + '\\nPedido: ' + question);
+                    const response = result.response.text().trim();
+                    status.remove();
+                    history.push({role:'usuário',text:question},{role:'assistente',text:response});
+                    let parsed;
+                    try { parsed = JSON.parse(response.replace(/^\x60\x60\x60(?:json)?\\s*|\\s*\x60\x60\x60$/g,'')); } catch (_) {}
+                    if (!parsed || !parsed.action) { addMessage('ai',parsed?.message || response); return; }
+                    const action = validateAction(parsed.action);
+                    if (!action) { addMessage('ai','A ação sugerida não passou na validação. Nenhum dado foi alterado. Reformule o pedido.'); return; }
+                    addMessage('ai',(parsed.message || 'Alteração solicitada') + '\\nProposta: ' + JSON.stringify(action));
+                    const approved = window.confirm('O Gemini propôs esta alteração nos seus dados financeiros:\\n\\n' + JSON.stringify(action,null,2) + '\\n\\nConfirma a execução?');
+                    if (!approved) { addMessage('ai','Alteração cancelada. Nenhum dado foi modificado.'); return; }
+                    applyAction(action);
+                    addMessage('ai','Alteração aplicada. Confira os valores na tela.');
+                } catch (error) {
+                    status.remove();
+                    console.error('Gemini AI Logic:',error);
+                    addMessage('ai','Não foi possível consultar o Gemini: ' + (error?.message || 'erro desconhecido') + '. Nenhum dado foi alterado.');
+                } finally { busy = false; btnSend.disabled = false; }
             }
-
-            btnSend.addEventListener('click', handleSend);
-            userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
-
-            document.querySelectorAll('.btn-gemini-prompt').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const promptText = btn.innerText.replace(/^[^\"]*\"/, '').replace(/\"$/, '');
-                    userInput.value = promptText;
-                    handleSend();
-                });
-            });
-
-            document.getElementById('btn-quick-ask-gemini').addEventListener('click', () => {
-                const tabs = document.querySelectorAll('#nav-tabs button');
-                tabs.forEach(t => t.classList.remove('active'));
-                document.querySelector('[data-tab="gemini"]').classList.add('active');
+            btnSend.addEventListener('click', () => handleSend());
+            userInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } });
+            document.querySelectorAll('.btn-gemini-prompt').forEach(btn => btn.addEventListener('click', () => handleSend(btn.innerText)));
+            document.getElementById('btn-quick-ask-gemini')?.addEventListener('click', () => {
+                document.querySelectorAll('#nav-tabs button').forEach(t => t.classList.remove('active'));
+                document.querySelector('[data-tab="gemini"]')?.classList.add('active');
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-                document.getElementById('tab-gemini').classList.remove('hidden');
+                document.getElementById('tab-gemini')?.classList.remove('hidden');
             });
-
-            document.getElementById('btn-generate-ai-report').addEventListener('click', () => {
-                addMessage('user', 'Gerar Diagnóstico Financeiro Completo');
-                setTimeout(() => {
-                    addMessage('ai', `📊 <strong>DIAGNÓSTICO FINANCEIRO COMPLETO (GEMINI AI)</strong><br><br>
-                    1. <strong>Saúde Financeira</strong>: Pontuação 7.2/10. Comprometimento de 64% da renda.<br>
-                    2. <strong>Plano de Ação Dívidas</strong>: Aloque R$ 300/mês extras no Cartão de Crédito (Estratégia Avalanche). Quitação total em 11 meses.<br>
-                    3. <strong>Metas de Investimento</strong>: Em Junho de 2027, mantendo aportes de R$ 1.000 a 120% do CDI, seu patrimônio atingirá <strong>R$ 10.528,90 Líquidos</strong>.<br>
-                    4. <strong>Automação Alexa</strong>: Skill configurada para alertas diários de vencimento.`);
-                }, 800);
-            });
-
-            document.getElementById('btn-gemini-tab-js').addEventListener('click', () => {
+            document.getElementById('btn-generate-ai-report')?.addEventListener('click', () => handleSend('Faça um diagnóstico financeiro completo com base nos dados atuais, incluindo despesas, dívidas, investimentos e cronograma sugerido. Não altere dados.'));
+            document.getElementById('btn-gemini-tab-js')?.addEventListener('click', () => {
                 document.getElementById('code-gemini-js').classList.remove('hidden');
                 document.getElementById('code-gemini-python').classList.add('hidden');
-                document.getElementById('btn-gemini-tab-js').className = 'pb-2 border-b-2 border-purple-400 text-purple-400';
-                document.getElementById('btn-gemini-tab-python').className = 'pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200';
             });
-            document.getElementById('btn-gemini-tab-python').addEventListener('click', () => {
-                document.getElementById('code-gemini-js').classList.add('hidden');
+            document.getElementById('btn-gemini-tab-python')?.addEventListener('click', () => {
                 document.getElementById('code-gemini-python').classList.remove('hidden');
-                document.getElementById('btn-gemini-tab-python').className = 'pb-2 border-b-2 border-purple-400 text-purple-400';
-                document.getElementById('btn-gemini-tab-js').className = 'pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200';
+                document.getElementById('code-gemini-js').classList.add('hidden');
             });
         }
 
-        function initModals() {
+                function initModals() {
             const modalBill = document.getElementById('modal-bill');
             const modalIncome = document.getElementById('modal-income');
             const modalDebt = document.getElementById('modal-debt');
