@@ -10,6 +10,11 @@ on:
         type: boolean
         required: true
         default: true
+      test_android:
+        description: 'Enviar teste somente ao dispositivo mais recente (precisa de 2 dispositivos e 1 conta elegível)'
+        type: boolean
+        required: true
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -32,4 +37,5 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           PUSH_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+          PUSH_TEST_LATEST_DEVICE: ${{ github.event_name == 'workflow_dispatch' && inputs.test_android && 'true' || 'false' }}
         run: node reminders-push.js
