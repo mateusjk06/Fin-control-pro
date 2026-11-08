@@ -1733,6 +1733,13 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const extras=list.reduce((sum,entry)=>sum+(Number.isFinite(Number(entry.amount))?Math.max(0,Number(entry.amount)):0),0);
             return {main,extras,total:Math.round((main+extras+Number.EPSILON)*100)/100,hasOverride};
         }
+        function incomeForRecurringPlan() {
+            // Bônus, comissões esporádicas e serviços extras não justificam
+            // metas permanentes de investimento ou amortização.
+            const normal = Math.max(0,Number(state.income)||0);
+            const thisMonth = monthlyIncomeParts(currentInvestmentMonthKey());
+            return Math.min(normal,thisMonth.main);
+        }
         let editingExtraIncomeId=null;
         function cancelExtraIncomeEdit() {
             editingExtraIncomeId=null;
@@ -2952,7 +2959,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     const ai = sdk.getAI(modularApp, { backend: new sdk.GoogleAIBackend() });
                     return sdk.getGenerativeModel(ai, {
                         model: 'gemini-3-flash-preview',
-                        systemInstruction: 'Você é um assistente financeiro. Responda sempre no idioma solicitado pelo usuário; use somente os dados fornecidos. Não invente saldos, juros, preços ou rendimentos. Não execute operações. Para solicitar mudanças, responda com JSON puro no formato {"message":"resumo curto","action":{"type":"add_bill|edit_bill|set_bill_paid|add_debt|edit_debt|set_income|record_investment|save_payoff_plan","id":numero opcional,"data":{...}}}. Para consultas, retorne texto normal. Uma única ação por resposta. Para editar contas: desc,cat,val,date,paid; dívidas: desc,balance,ratePct,minPayment; renda: value; investimentos: month (YYYY-MM),amount. Nunca proponha apagar dados ou transferir dinheiro. Se o usuário pedir para aplicar uma estratégia de quitação e investimento no aplicativo, proponha action type save_payoff_plan com data {debtId: número, monthlyInvestment: número >= 0, monthlyExtraPayment: número >= 0, months: inteiro entre 1 e 60, rationale: texto curto}. Use um id de dívida existente. Para save_payoff_plan, os campos monthlyInvestment e monthlyExtraPayment devem ser números JSON, months deve ser inteiro e rationale deve ter no máximo 150 caracteres. A soma das duas metas não pode exceder a renda menos contas e parcelas mínimas informadas. Considere que despesas variáveis não cadastradas reduzem a margem real. Não altere o saldo da dívida, nem registre pagamentos reais; o plano apenas define metas de aporte e amortização futura, sujeitas a confirmação.'
+                        systemInstruction: 'Você é um assistente financeiro. Responda sempre no idioma solicitado pelo usuário; use somente os dados fornecidos. Não invente saldos, juros, preços ou rendimentos. Não execute operações. Para solicitar mudanças, responda com JSON puro no formato {"message":"resumo curto","action":{"type":"add_bill|edit_bill|set_bill_paid|add_debt|edit_debt|set_income|record_investment|save_payoff_plan","id":numero opcional,"data":{...}}}. Para consultas, retorne texto normal. Uma única ação por resposta. Para editar contas: desc,cat,val,date,paid; dívidas: desc,balance,ratePct,minPayment; renda: value; investimentos: month (YYYY-MM),amount. Nunca proponha apagar dados ou transferir dinheiro. Se o usuário pedir para aplicar uma estratégia de quitação e investimento no aplicativo, proponha action type save_payoff_plan com data {debtId: número, monthlyInvestment: número >= 0, monthlyExtraPayment: número >= 0, months: inteiro entre 1 e 60, rationale: texto curto}. Use um id de dívida existente. Para save_payoff_plan, os campos monthlyInvestment e monthlyExtraPayment devem ser números JSON, months deve ser inteiro e rationale deve ter no máximo 150 caracteres. A soma das duas metas não pode exceder a renda menos contas e parcelas mínimas informadas. Considere que despesas variáveis não cadastradas reduzem a margem real. Não altere o saldo da dívida, nem registre pagamentos reais; o plano apenas define metas de aporte e amortização futura, sujeitas a confirmação. Ganhos extras e bônus ocasionais não são renda mensal garantida: não os use como base para metas recorrentes.'
                     });
                 })().catch(error => { aiModelPromise = null; throw error; });
                 return aiModelPromise;
@@ -2986,7 +2993,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                         return number(data.value) ? {type:'set_income',data:{value:data.value}} : null;
                     case 'save_payoff_plan': {
                         const debt = state.debts.find(d => d.id === Number(data.debtId));
-                        const free = monthlyIncomeParts(currentInvestmentMonthKey()).total - state.bills.reduce((a,b)=>a+Number(b.val||0),0) - state.debts.reduce((a,d)=>a+Number(d.minPayment||0),0);
+                        const free = incomeForRecurringPlan() - state.bills.reduce((a,b)=>a+Number(b.val||0),0) - state.debts.reduce((a,d)=>a+Number(d.minPayment||0),0);
                         return debt && number(data.monthlyInvestment) && number(data.monthlyExtraPayment) && data.monthlyInvestment + data.monthlyExtraPayment <= Math.max(0,free) && Number.isInteger(data.months) && data.months >= 1 && data.months <= 60 && str(data.rationale) ?
                             {type:'save_payoff_plan',data:{debtId:debt.id,monthlyInvestment:data.monthlyInvestment,monthlyExtraPayment:data.monthlyExtraPayment,months:data.months,rationale:data.rationale}} : null;
                     }
@@ -3047,7 +3054,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                         let reason = 'Formato ou valores incompatíveis com as regras do aplicativo.';
                         if (proposed.type === 'save_payoff_plan') {
                             const debt = state.debts.find(item => item.id === Number(d.debtId));
-                            const free = Math.max(0, monthlyIncomeParts(currentInvestmentMonthKey()).total - state.bills.reduce((sum,b)=>sum+Number(b.val||0),0) - state.debts.reduce((sum,item)=>sum+Number(item.minPayment||0),0));
+                            const free = Math.max(0, incomeForRecurringPlan() - state.bills.reduce((sum,b)=>sum+Number(b.val||0),0) - state.debts.reduce((sum,item)=>sum+Number(item.minPayment||0),0));
                             if (!debt) reason = 'A dívida indicada não existe no cadastro.';
                             else if (![d.monthlyInvestment,d.monthlyExtraPayment].every(v=>typeof v==='number' && Number.isFinite(v) && v>=0)) reason = 'Os valores de investimento e amortização precisam ser números positivos ou zero.';
                             else if (d.monthlyInvestment + d.monthlyExtraPayment > free) reason = 'As metas somadas ultrapassam a margem estimada de ' + formatBRL(free) + '. Essa margem não inclui despesas variáveis não cadastradas.';
