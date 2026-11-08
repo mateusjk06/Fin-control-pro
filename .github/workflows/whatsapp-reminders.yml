@@ -28,11 +28,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: 'functions/package-lock.json'
       - name: Install dependencies
         working-directory: functions
-        run: npm ci --omit=dev
+        run: npm install --omit=dev --no-package-lock --no-audit --no-fund
       - name: Process reminders
         working-directory: functions
         env:
