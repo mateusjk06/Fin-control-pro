@@ -1,9 +1,6 @@
 name: WhatsApp - lembretes de vencimento
 
 on:
-  schedule:
-    - cron: '17 9 * * *'
-      timezone: 'America/Sao_Paulo'
   workflow_dispatch:
     inputs:
       dry_run:
