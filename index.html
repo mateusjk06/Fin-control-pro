@@ -1300,6 +1300,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             monthlyInvestments: {},
             aiPayoffPlan: null,
             monthlyAmortizations: {},
+            appliedAmortizations: {},
             investmentConfig: {
                 initial: 3000.0,
                 monthly: 1000.0,
@@ -1339,7 +1340,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 investmentConfig: state.investmentConfig,
                 monthlyInvestments: state.monthlyInvestments,
                 aiPayoffPlan: state.aiPayoffPlan,
-                monthlyAmortizations: state.monthlyAmortizations
+                monthlyAmortizations: state.monthlyAmortizations,
+                appliedAmortizations: state.appliedAmortizations
             };
         }
 
@@ -1350,6 +1352,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             if (Array.isArray(saved.debts)) state.debts = saved.debts;
             if (saved.aiPayoffPlan && typeof saved.aiPayoffPlan === 'object') state.aiPayoffPlan = saved.aiPayoffPlan;
             if (saved.monthlyAmortizations && typeof saved.monthlyAmortizations === 'object') state.monthlyAmortizations = saved.monthlyAmortizations;
+            state.appliedAmortizations = saved.appliedAmortizations && typeof saved.appliedAmortizations === 'object' ? saved.appliedAmortizations : {};
             if (saved.monthlyInvestments && typeof saved.monthlyInvestments === "object" && !Array.isArray(saved.monthlyInvestments)) state.monthlyInvestments = saved.monthlyInvestments;
             if (saved.investmentConfig && typeof saved.investmentConfig === 'object') {
                 state.investmentConfig = { ...state.investmentConfig, ...saved.investmentConfig };
@@ -1361,6 +1364,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             state.bills = [];
             state.debts = [];
             state.monthlyInvestments = {};
+            state.monthlyAmortizations = {};
+            state.appliedAmortizations = {};
             state.aiPayoffPlan = null;
             state.investmentConfig = { initial: 0, monthly: 0, cdiAnnual: 13.6, ratePct: 100, months: 12, useIR: true };
         }
@@ -1657,14 +1662,44 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const load = () => { const value = (state.monthlyAmortizations || {})[month.value]; amount.value = value === undefined ? '' : value; };
             month.addEventListener('change', load); load();
             save.addEventListener('click', () => {
+                const key = month.value;
                 const value = Number(amount.value);
-                if (!/^\d{4}-\d{2}$/.test(month.value) || !amount.value.trim() || !Number.isFinite(value) || value < 0) { alert('Escolha um mês e um valor válido.'); return; }
-                if (!confirm('Você já realizou uma amortização extra de ' + formatBRL(value) + ' em ' + month.value + '? O saldo da dívida não será alterado.')) return;
+                if (!/^\d{4}-\d{2}$/.test(key) || !amount.value.trim() || !Number.isFinite(value) || value <= 0) {
+                    alert('Escolha um mês e um valor positivo válido.'); return;
+                }
+                const plan = state.aiPayoffPlan;
+                const debt = plan && state.debts.find(d => Number(d.id) === Number(plan.debtId));
+                if (!debt) { alert('Selecione uma dívida em um plano Gemini antes de registrar a amortização.'); return; }
                 state.monthlyAmortizations ||= {};
-                state.monthlyAmortizations[month.value] = value;
+                state.appliedAmortizations ||= {};
+                const applied = state.appliedAmortizations[key];
+                if (applied) {
+                    alert('Este mês já possui uma amortização aplicada de ' + formatBRL(applied.amount) +
+                        ' na dívida. Para corrigir um pagamento, revise o histórico antes de alterar o saldo novamente.');
+                    return;
+                }
+                const balance = Number(debt.balance);
+                if (!Number.isFinite(balance) || balance < 0 || value > balance) {
+                    alert('O valor não pode ultrapassar o saldo devedor atual de ' + formatBRL(balance) + '.'); return;
+                }
+                const previouslyTracked = Number(state.monthlyAmortizations[key]) || 0;
+                const notice = previouslyTracked > 0
+                    ? 'Este mês já possui ' + formatBRL(previouslyTracked) + ' registrados apenas para acompanhamento. Confira se esse pagamento ainda NÃO foi descontado manualmente do saldo.\n\n'
+                    : '';
+                if (!confirm(notice + 'Confirmar pagamento REAL de ' + formatBRL(value) + ' em ' + key +
+                    ' para a dívida "' + debt.desc + '"?\nO saldo será reduzido de ' +
+                    formatBRL(balance) + ' para ' + formatBRL(balance - value) +
+                    '. Essa operação não movimenta dinheiro.')) return;
+                // Registro por mês impede que o mesmo pagamento seja abatido novamente.
+                debt.balance = Math.round((balance - value) * 100) / 100;
+                state.monthlyAmortizations[key] = value;
+                state.appliedAmortizations[key] = {
+                    debtId: debt.id, amount: value, balanceBefore: balance,
+                    balanceAfter: debt.balance, recordedAt: new Date().toISOString()
+                };
                 recalculate();
-                alert('Amortização registrada para acompanhamento.');
-            });
+                alert('Amortização aplicada ao saldo devedor e salva no histórico do mês.');
+            });;
         }
         function initHistoryChart() {
             const canvas = document.getElementById('chart-history');
