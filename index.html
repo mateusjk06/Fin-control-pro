@@ -2308,8 +2308,11 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     case 'save_payoff_plan': {
                         state.aiPayoffPlan = {...d,createdAt:new Date().toISOString()};
                         state.investmentConfig.monthly = d.monthlyInvestment;
+                        state.investmentConfig.months = d.months;
                         const monthlyInput = document.getElementById('inv-monthly');
                         if (monthlyInput) monthlyInput.value = d.monthlyInvestment;
+                        const monthsInput = document.getElementById('inv-months');
+                        if (monthsInput) monthsInput.value = d.months;
                         break;
                     }
                 }
