@@ -3403,7 +3403,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const q=raw.toLocaleLowerCase('pt-BR');
                 if(!/^(gastei|paguei|despesa|gasto|cadastre uma despesa|registre uma despesa|adicione uma despesa)\b/i.test(q))return null;
                 if(/\b(d[ií]vida|parcela|parcelado|mensal|recorrente|investimento|amanh[ãa]|ontem|semana passada|m[eê]s passado|exclua|apague)\b/i.test(q))return null;
-                const m=q.match(/(?:r\$\s*)?(\d{1,6}(?:[.,]\d{1,2})?)\s*(?:reais?|r\$)?\s+(?:de |do |da |em |com |no |na )?([\p{L}\p{N}\s-]+?)(?:\s+hoje)?$/u);
+                const m=q.match(/^(?:gastei|paguei|gasto|despesa|(?:cadastre|registre|adicione) uma despesa)(?:\s+de)?\s+(?:r\$\s*)?(\d{1,6}(?:[.,]\d{1,2})?)\s*(?:reais?|r\$)?\s+(?:de|do|da|em|com|no|na)\s+([\p{L}\p{N}\s-]+?)(?:\s+hoje)?$/u);
                 if(!m)return null;
                 const val=Number(m[1].replace(',','.'));
                 const desc=m[2].trim().replace(/\s+/g,' ');
