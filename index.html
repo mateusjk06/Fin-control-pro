@@ -2843,98 +2843,6 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             });
         }
 
-        function initGeminiSimulator() {
-            const chatHistory = document.getElementById('gemini-chat-history');
-            const userInput = document.getElementById('gemini-user-input');
-            const btnSend = document.getElementById('btn-send-gemini');
-
-            function addMessage(role, text) {
-                const msg = document.createElement('div');
-                msg.className = 'flex items-start space-x-2';
-                if (role === 'user') {
-                    msg.innerHTML = `
-                        <div class="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-white text-xs flex-shrink-0">Você</div>
-                        <div class="bg-slate-800 rounded-xl p-3 text-slate-200 max-w-xl">
-                            <p class="font-semibold text-slate-400 mb-1">Sua Pergunta</p>
-                            <p>${text}</p>
-                        </div>
-                    `;
-                } else {
-                    msg.innerHTML = `
-                        <div class="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs flex-shrink-0">G</div>
-                        <div class="bg-slate-950 border border-purple-500/30 rounded-xl p-3 text-slate-200 max-w-xl">
-                            <p class="font-semibold text-purple-300 mb-1">Gemini AI Advisor</p>
-                            <p>${text}</p>
-                        </div>
-                    `;
-                }
-                chatHistory.appendChild(msg);
-                chatHistory.scrollTop = chatHistory.scrollHeight;
-            }
-
-            function handleSend() {
-                const text = userInput.value.trim();
-                if (!text) return;
-                addMessage('user', text);
-                userInput.value = '';
-
-                setTimeout(() => {
-                    let aiReply = "Analisei sua solicitação. Com base na sua taxa de juros atual e saldo devedor, a recomendação é focar na quitação do Cartão de Crédito (11,5% a.m.) antes de aumentar os aportes no CDI.";
-                    if (text.toLowerCase().includes('anomalia') || text.toLowerCase().includes('gasto')) {
-                        aiReply = "🔍 **Análise de Anomalias Gemini**: Seus gastos com Moradia e Serviços representam 33.6% da renda. Não foram detectadas anomalias graves, mas o cartão de crédito gera R$ 517,50 em juros/mês se não for quitado.";
-                    } else if (text.toLowerCase().includes('reserva')) {
-                        aiReply = "🛡️ **Cálculo de Reserva de Emergência**: Para cobrir 6 meses das suas contas fixas (R$ 2.200/mês), sua reserva ideal é de **R$ 13.200,00**. Com seu saldo livre de R$ 1.800, você pode alcançá-la em 7.3 meses.";
-                    } else if (text.toLowerCase().includes('cdi') || text.toLowerCase().includes('comparar')) {
-                        aiReply = "📈 **Comparativo de Investimentos (Gemini AI)**:<br>• **CDI 120% (LCI/LCA isento)**: ~13.6% a.a. líquido.<br>• **Tesouro IPCA+ 2029**: IPCA + 6.45% a.a. (Proteção contra inflação).<br>Recomendamos manter 70% no CDI 120% e 30% em IPCA+ para otimização de risco.";
-                    }
-                    addMessage('ai', aiReply);
-                }, 600);
-            }
-
-            btnSend.addEventListener('click', handleSend);
-            userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
-
-            document.querySelectorAll('.btn-gemini-prompt').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const promptText = btn.innerText.replace(/^[^\"]*\"/, '').replace(/\"$/, '');
-                    userInput.value = promptText;
-                    handleSend();
-                });
-            });
-
-            document.getElementById('btn-quick-ask-gemini').addEventListener('click', () => {
-                const tabs = document.querySelectorAll('#nav-tabs button');
-                tabs.forEach(t => t.classList.remove('active'));
-                document.querySelector('[data-tab="gemini"]').classList.add('active');
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-                document.getElementById('tab-gemini').classList.remove('hidden');
-            });
-
-            document.getElementById('btn-generate-ai-report').addEventListener('click', () => {
-                addMessage('user', 'Gerar Diagnóstico Financeiro Completo');
-                setTimeout(() => {
-                    addMessage('ai', `📊 <strong>DIAGNÓSTICO FINANCEIRO COMPLETO (GEMINI AI)</strong><br><br>
-                    1. <strong>Saúde Financeira</strong>: Pontuação 7.2/10. Comprometimento de 64% da renda.<br>
-                    2. <strong>Plano de Ação Dívidas</strong>: Aloque R$ 300/mês extras no Cartão de Crédito (Estratégia Avalanche). Quitação total em 11 meses.<br>
-                    3. <strong>Metas de Investimento</strong>: Em Junho de 2027, mantendo aportes de R$ 1.000 a 120% do CDI, seu patrimônio atingirá <strong>R$ 10.528,90 Líquidos</strong>.<br>
-                    4. <strong>Automação Alexa</strong>: Skill configurada para alertas diários de vencimento.`);
-                }, 800);
-            });
-
-            document.getElementById('btn-gemini-tab-js').addEventListener('click', () => {
-                document.getElementById('code-gemini-js').classList.remove('hidden');
-                document.getElementById('code-gemini-python').classList.add('hidden');
-                document.getElementById('btn-gemini-tab-js').className = 'pb-2 border-b-2 border-purple-400 text-purple-400';
-                document.getElementById('btn-gemini-tab-python').className = 'pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200';
-            });
-            document.getElementById('btn-gemini-tab-python').addEventListener('click', () => {
-                document.getElementById('code-gemini-js').classList.add('hidden');
-                document.getElementById('code-gemini-python').classList.remove('hidden');
-                document.getElementById('btn-gemini-tab-python').className = 'pb-2 border-b-2 border-purple-400 text-purple-400';
-                document.getElementById('btn-gemini-tab-js').className = 'pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200';
-            });
-        }
-
         function initModals() {
             const modalBill = document.getElementById('modal-bill');
             const modalIncome = document.getElementById('modal-income');
@@ -3099,7 +3007,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             initHistoryChart();
             initModals();
             initAlexaSimulator();
-            initGeminiSimulator();
+
             auth.onAuthStateChanged(async (user) => {
                 if (user) {
                     await loadUserData(user);
