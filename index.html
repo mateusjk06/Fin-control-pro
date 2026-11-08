@@ -570,6 +570,7 @@
                 </div>
             </div>
 
+            <p id="currency-investment-note" class="hidden rounded-lg border border-amber-600/40 bg-amber-950/20 px-4 py-3 text-xs text-amber-200"></p>
             <!-- Summary KPI Box -->
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
@@ -1397,10 +1398,25 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
 
         const CURRENCIES = ['BRL','EUR','USD','GBP','CHF','CAD','AUD','MXN','ARS'];
+        UI_TRANSLATIONS.it['Moeda'] = 'Valuta';
+        UI_TRANSLATIONS.en['Moeda'] = 'Currency';
+        UI_TRANSLATIONS.es['Moeda'] = 'Moneda';
         const CURRENCY_SYMBOLS = {BRL:'R$',EUR:'€',USD:'US$',GBP:'£',CHF:'CHF',CAD:'CA$',AUD:'A$',MXN:'MX$',ARS:'AR$'};
         function syncCurrencyPicker() {
             const select = document.getElementById('currency-select');
             if (select) select.value = CURRENCIES.includes(state.currency) ? state.currency : 'BRL';
+            const warning = document.getElementById('currency-investment-note');
+            if (warning) {
+                const otherCurrency = state.currency !== 'BRL';
+                warning.classList.toggle('hidden', !otherCurrency);
+                const messages = {
+                    pt:'Atenção: CDI é um índice brasileiro, não representa uma taxa de rendimento na moeda escolhida. Ajuste as taxas do simulador ao produto e à moeda. A projeção não é rendimento garantido.',
+                    it:'Attenzione: il CDI è un indice brasiliano, non un rendimento per la valuta selezionata. Adegua i tassi della simulazione all’investimento e alla valuta. Il rendimento non è garantito.',
+                    en:'Note: CDI is a Brazilian benchmark, not a return rate for the selected currency. Adjust the simulation rates to your investment and currency. Returns are not guaranteed.',
+                    es:'Atención: el CDI es un índice brasileño, no una tasa de rentabilidad de la moneda elegida. Ajusta la simulación a tu inversión y moneda. El rendimiento no está garantizado.'
+                };
+                warning.textContent = otherCurrency ? (messages[activeLanguage] || messages.pt) : '';
+            }
         }
         function hasCurrencyAmounts(d) {
             const exists = x => Number.isFinite(Number(x)) && Number(x) !== 0;
@@ -1447,18 +1463,30 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 if (mode !== '1' && mode !== '2') { syncCurrencyPicker(); return; }
                 let factor = 1;
                 if (mode === '2') {
-                    const raw = prompt('1 ' + previous + ' equivale a quantas unidades de ' + target + '? Informe a taxa de câmbio manual (sem consulta automática).');
+                    const questions = {
+                        pt:'Quantas unidades de {to} equivalem a 1 {from}? Informe a cotação manual. Nenhuma cotação é consultada automaticamente.',
+                        it:'Quante unità di {to} corrispondono a 1 {from}? Inserisci il cambio manualmente. Non viene consultato alcun tasso in tempo reale.',
+                        en:'How many units of {to} equal 1 {from}? Enter the rate manually. No live rates are requested.',
+                        es:'¿Cuántas unidades de {to} equivalen a 1 {from}? Indica la tasa manualmente. No se consultan tipos de cambio en tiempo real.'
+                    };
+                    const raw = prompt((questions[activeLanguage] || questions.pt).replaceAll('{from}',previous).replaceAll('{to}',target));
                     if (raw === null) { syncCurrencyPicker(); return; }
                     factor = Number(raw.trim().replace(',','.'));
                     if (!Number.isFinite(factor) || factor <= 0 || factor > 1000000) {
-                        alert('Taxa inválida. Nenhum dado foi alterado.');
+                        alert(({pt:'Taxa inválida. Nenhum dado foi alterado.',it:'Cambio non valido. Nessun dato modificato.',en:'Invalid exchange rate. No data changed.',es:'Tasa inválida. No se modificaron los datos.'})[activeLanguage] || 'Taxa inválida.');
                         syncCurrencyPicker(); return;
                     }
                     multiplyCurrencyAmounts(data, factor);
                 }
+                const confirms = {
+                    pt:['Converter todos os valores monetários com a taxa ','Não converter os valores; apenas alterar a moeda.','Confirmar para esta conta?'],
+                    it:['Convertire tutti gli importi al tasso ','Non convertire gli importi; cambiare soltanto la valuta.','Confermi la modifica per questo account?'],
+                    en:['Convert every amount using rate ','Do not convert amounts; change only the currency.','Confirm for this account?'],
+                    es:['Convertir todos los importes a la tasa ','No convertir los importes; cambiar solo la moneda.','¿Confirmar para esta cuenta?']
+                };
+                const parts = confirms[activeLanguage] || confirms.pt;
                 if (!confirm(previous + ' → ' + target + '\n' +
-                    (mode === '2' ? 'Converter todos os valores monetários com a taxa ' + factor : 'Não converter os valores; apenas alterar a moeda.') +
-                    '\nConfirmar para esta conta?')) {
+                    (mode === '2' ? parts[0] + factor : parts[1]) + '\n' + parts[2])) {
                     syncCurrencyPicker(); return;
                 }
             }
@@ -1475,10 +1503,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 syncCurrencyPicker();
                 recalculate();
                 applyLanguage(activeLanguage);
-                showToast('Moeda salva: ' + target);
+                showToast(({pt:'Moeda salva: ',it:'Valuta salvata: ',en:'Currency saved: ',es:'Moneda guardada: '})[activeLanguage] + target);
             } catch (error) {
                 console.error('Moeda não sincronizada:',error);
-                alert('Falha ao salvar a moeda no Firebase. Nenhum dado foi alterado.');
+                alert(({pt:'Falha ao salvar a moeda no Firebase. Nenhum dado foi alterado.',it:'Impossibile salvare la valuta su Firebase. Nessun dato è stato modificato.',en:'Could not save currency to Firebase. No data was changed.',es:'No se pudo guardar la moneda en Firebase. No se modificaron los datos.'})[activeLanguage]);
                 syncCurrencyPicker();
             } finally { selector.disabled = false; }
         }
@@ -2900,7 +2928,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const savings = Math.round(1420 + (extra * 1.5));
                 document.getElementById('debt-sim-result').innerHTML = `
                     <p class="text-slate-400">Tempo total (${strat === 'avalanche' ? 'Avalanche' : 'Bola de Neve'}): <span class="text-emerald-400 font-bold">${months} meses</span></p>
-                    <p class="text-slate-400">Economia estimada em juros: <span class="text-cyan-400 font-bold">R$ ${savings.toLocaleString('pt-BR')},00</span></p>
+                    <p class="text-slate-400">Economia estimada em juros: <span class="text-cyan-400 font-bold">${formatBRL(savings)}</span></p>
                 `;
                 showToast('Simulação de quitação recalculada!');
             });
