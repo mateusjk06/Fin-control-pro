@@ -954,6 +954,35 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         let budgetChart = null;
         let investChart = null;
         let historyChart = null;
+        const STORAGE_KEY = 'fincontrol-pro-data-v2';
+
+        function saveAppData() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                    income: state.income,
+                    bills: state.bills,
+                    debts: state.debts,
+                    investmentConfig: state.investmentConfig
+                }));
+            } catch (error) {
+                console.warn('Não foi possível salvar os dados localmente.', error);
+            }
+        }
+
+        function loadAppData() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+                if (!saved) return;
+                if (Number.isFinite(saved.income)) state.income = saved.income;
+                if (Array.isArray(saved.bills)) state.bills = saved.bills;
+                if (Array.isArray(saved.debts)) state.debts = saved.debts;
+                if (saved.investmentConfig && typeof saved.investmentConfig === 'object') {
+                    state.investmentConfig = { ...state.investmentConfig, ...saved.investmentConfig };
+                }
+            } catch (error) {
+                console.warn('Dados locais não puderam ser carregados.', error);
+            }
+        }
 
         function showToast(msg) {
             const toast = document.getElementById('toast-notification');
@@ -1124,6 +1153,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             renderBillsTable();
             renderDebtsList();
             renderHistoryAnalysis();
+            saveAppData();
             updateBudgetChart(totalBills, totalDebtsPay, monthlyInvest, Math.max(0, freeBalance - monthlyInvest));
             calculateInvestmentSchedule();
         }
@@ -1626,6 +1656,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         window.addEventListener('DOMContentLoaded', () => {
+            loadAppData();
             initTabs();
             initBudgetChart();
             initInvestChart();
