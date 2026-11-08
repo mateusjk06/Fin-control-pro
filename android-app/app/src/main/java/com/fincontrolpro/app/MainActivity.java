@@ -14,6 +14,9 @@ import android.speech.RecognitionListener;
 import java.util.ArrayList;
 import java.util.Locale;
 import org.json.JSONObject;
+import org.json.JSONTokener;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
@@ -34,12 +37,20 @@ import android.graphics.Color;
 public final class MainActivity extends Activity {
     private static final String APP_URL = "https://mateusjk06.github.io/Fin-control-pro/";
     // Version query forces GitHub Pages to serve the current interface after APK upgrades.
-    private static final String UI_VERSION = "20261108-mobile-2";
+    private static final String UI_VERSION = "20261108-mobile-notify-1";
     private static final String HOST = "mateusjk06.github.io";
     private static final String PATH = "/Fin-control-pro/";
     private static final int AUDIO_REQUEST = 3001;
     private static final int SPEECH_REQUEST = 3002;
     private static final int NATIVE_AUDIO_REQUEST = 3003;
+    private static final int NOTIFICATION_REQUEST = 3004;
+    private final Handler remindersHandler = new Handler(Looper.getMainLooper());
+    private final Runnable remindersPoll = new Runnable() {
+        @Override public void run() {
+            refreshNativeReminders();
+            remindersHandler.postDelayed(this, 60000);
+        }
+    };
     private SpeechRecognizer speechRecognizer;
     private Button voiceButton;
     private WebView webView;
@@ -93,6 +104,10 @@ public final class MainActivity extends Activity {
         setContentView(root);
         configureWebView();
         webView.loadUrl(resolveLaunchUrl(getIntent()));
+        if(Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_REQUEST);
+        }
     }
 
     private boolean trusted(Uri uri) {
@@ -118,7 +133,7 @@ public final class MainActivity extends Activity {
     private void configureWebView() {
         WebSettings settings=webView.getSettings();
         settings.setJavaScriptEnabled(true);
-        settings.setUserAgentString(settings.getUserAgentString() + " FinControlProAndroid/1.3");
+        settings.setUserAgentString(settings.getUserAgentString() + " FinControlProAndroid/1.4");
         settings.setDomStorageEnabled(true);
         // Force a fresh HTML/CSS fetch, without clearing cookies or Firebase local session.
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
@@ -151,6 +166,8 @@ public final class MainActivity extends Activity {
             }
             @Override public void onPageFinished(WebView view,String url) {
                 progress.setVisibility(View.GONE);
+                // Firebase authentication is async; the foreground poll syncs when login completes.
+                remindersHandler.postDelayed(() -> refreshNativeReminders(), 2500);
             }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) {
                 if(request.isForMainFrame()){
@@ -177,6 +194,32 @@ public final class MainActivity extends Activity {
                 if(pendingAudioRequest==request)pendingAudioRequest=null;
             }
         });
+    }
+
+    private void refreshNativeReminders() {
+        if(webView==null || !trusted(Uri.parse(webView.getUrl()==null?"":webView.getUrl())))return;
+        String js="(function(){if(typeof window.fincontrolNativeNotificationData !== 'function')return null;"+
+                "const data=window.fincontrolNativeNotificationData();return data?JSON.stringify(data):null;})()";
+        webView.evaluateJavascript(js, raw -> {
+            try {
+                Object decoded = new JSONTokener(raw).nextValue();
+                if (!(decoded instanceof String)) return; // not signed in yet
+                String payload=(String)decoded;
+                if (payload.length()>50000)return;
+                ReminderReceiver.saveSchedule(this,payload);
+            } catch (Exception ignored) {}
+        });
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        remindersHandler.removeCallbacks(remindersPoll);
+        remindersHandler.postDelayed(remindersPoll, 3000);
+    }
+
+    @Override protected void onPause() {
+        remindersHandler.removeCallbacks(remindersPoll);
+        super.onPause();
     }
 
     private void voiceInfo(String message) {
@@ -303,6 +346,12 @@ public final class MainActivity extends Activity {
 
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results) {
         super.onRequestPermissionsResult(code,permissions,results);
+        if(code == NOTIFICATION_REQUEST){
+            if(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED) {
+                refreshNativeReminders();
+            }
+            return;
+        }
         if(code == NATIVE_AUDIO_REQUEST){
             if(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED)startVoiceInput();
             else voiceInfo("Permita o microfone para usar os comandos de voz.");
@@ -328,6 +377,7 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy(){
+        remindersHandler.removeCallbacks(remindersPoll);
         stopNativeRecognition();
         if(pendingAudioRequest!=null){pendingAudioRequest.deny();pendingAudioRequest=null;}
         if(webView!=null)webView.destroy();
