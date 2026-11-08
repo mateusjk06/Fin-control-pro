@@ -1654,6 +1654,11 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             }
             overlay.classList.add('hidden');
             syncCurrencyPicker();
+            // A moeda e carregada de forma assincrona do Firebase. O idioma ja
+            // podia ter sido aplicado antes com BRL; atualizar TODOS os rotulos.
+            try { applyLanguage(activeLanguage); } catch (error) {
+                console.error('Falha ao atualizar rotulos monetarios apos login:', error);
+            }
             const initial = document.getElementById('inv-initial');
             if (initial) initial.value = state.investmentConfig.initial;
             try { localStorage.setItem(userStorageKey(user.uid), JSON.stringify(getAppData())); } catch (error) { console.warn('Cache indisponível:', error); }
@@ -2955,6 +2960,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 } else {
                     currentUser = null;
                     resetStateForNewUser();
+                    try { applyLanguage(activeLanguage); } catch (error) { console.error('Idioma apos sair:', error); }
                     document.getElementById('account-email').textContent = '';
                     document.getElementById('auth-overlay').classList.remove('hidden');
                     try { recalculate(); } catch (error) { console.error('Erro ao atualizar tela:', error); }
