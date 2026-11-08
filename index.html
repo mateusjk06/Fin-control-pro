@@ -851,7 +851,7 @@ exports.handler = Alexa.SkillBuilders.custom()
                             <span>Enviar</span>
                         </button>
                     </div>
-                    <p id="gemini-voice-status" role="status" aria-live="polite" class="text-xs text-slate-400">Toque no microfone, fale o comando e confira o texto antes de enviar. Nenhum lançamento é salvo sem confirmação.</p>
+                    <p id="gemini-voice-status" role="status" aria-live="polite" class="text-xs text-slate-400">Toque no microfone, fale o comando e confira o texto antes de enviar. Lançamentos são salvos após validação, sem confirmação adicional.</p>
                 </div>
 
                 <!-- Sugestoes opcionais, fechadas por padrao. -->
@@ -3329,7 +3329,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     const ai = sdk.getAI(modularApp, { backend: new sdk.GoogleAIBackend() });
                     return sdk.getGenerativeModel(ai, {
                         model: 'gemini-3-flash-preview',
-                        systemInstruction: 'Você é um assistente financeiro. Responda sempre no idioma solicitado pelo usuário; use somente os dados fornecidos. Não invente saldos, juros, preços ou rendimentos. Não execute operações. Para solicitar mudanças, responda com JSON puro no formato {"message":"resumo curto","action":{"type":"add_bill|edit_bill|set_bill_paid|add_debt|edit_debt|set_income|record_investment|save_payoff_plan","id":numero opcional,"data":{...}}}. Para consultas, retorne texto normal. Uma única ação por resposta. Para editar contas: desc,cat,val,date,paid; dívidas: desc,balance,ratePct,minPayment; renda: value; investimentos: month (YYYY-MM),amount. Nunca proponha apagar dados ou transferir dinheiro. Se o usuário pedir para aplicar uma estratégia de quitação e investimento no aplicativo, proponha action type save_payoff_plan com data {debtId: número, monthlyInvestment: número >= 0, monthlyExtraPayment: número >= 0, months: inteiro entre 1 e 60, rationale: texto curto}. Use um id de dívida existente. Para save_payoff_plan, os campos monthlyInvestment e monthlyExtraPayment devem ser números JSON, months deve ser inteiro e rationale deve ter no máximo 150 caracteres. A soma das duas metas não pode exceder a renda menos contas e parcelas mínimas informadas. Considere que despesas variáveis não cadastradas reduzem a margem real. Não altere o saldo da dívida, nem registre pagamentos reais; o plano apenas define metas de aporte e amortização futura, sujeitas a confirmação. Ganhos extras e bônus ocasionais não são renda mensal garantida: não os use como base para metas recorrentes.'
+                        systemInstruction: 'Você é um assistente financeiro. Responda sempre no idioma solicitado pelo usuário; use somente os dados fornecidos. Não invente saldos, juros, preços ou rendimentos. Não execute operações. Para solicitar mudanças, responda com JSON puro no formato {"message":"resumo curto","action":{"type":"add_bill|edit_bill|set_bill_paid|add_debt|edit_debt|set_income|record_investment|save_payoff_plan","id":numero opcional,"data":{...}}}. Para consultas, retorne texto normal. Uma única ação por resposta. Para editar contas: desc,cat,val,date,paid; dívidas: desc,balance,ratePct,minPayment; renda: value; investimentos: month (YYYY-MM),amount. Nunca proponha apagar dados ou transferir dinheiro. Se o usuário pedir para aplicar uma estratégia de quitação e investimento no aplicativo, proponha action type save_payoff_plan com data {debtId: número, monthlyInvestment: número >= 0, monthlyExtraPayment: número >= 0, months: inteiro entre 1 e 60, rationale: texto curto}. Use um id de dívida existente. Para save_payoff_plan, os campos monthlyInvestment e monthlyExtraPayment devem ser números JSON, months deve ser inteiro e rationale deve ter no máximo 150 caracteres. A soma das duas metas não pode exceder a renda menos contas e parcelas mínimas informadas. Considere que despesas variáveis não cadastradas reduzem a margem real. Não altere o saldo da dívida, nem registre pagamentos reais; o plano apenas define metas de aporte e amortização futura. Ganhos extras e bônus ocasionais não são renda mensal garantida: não os use como base para metas recorrentes.'
                     });
                 })().catch(error => { aiModelPromise = null; throw error; });
                 return aiModelPromise;
@@ -3435,8 +3435,6 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                         return;
                     }
                     addMessage('ai',(parsed.message || 'Alteração solicitada') + '\\nProposta: ' + JSON.stringify(action));
-                    const approved = window.confirm('O Gemini propôs esta alteração nos seus dados financeiros:\\n\\n' + JSON.stringify(action,null,2) + '\\n\\nConfirma a execução?');
-                    if (!approved) { addMessage('ai','Alteração cancelada. Nenhum dado foi modificado.'); return; }
                     applyAction(action);
                     if (action.type === 'save_payoff_plan') addMessage('ai','Plano salvo: aporte mensal de ' + formatBRL(action.data.monthlyInvestment) + ' e meta de amortização extra de ' + formatBRL(action.data.monthlyExtraPayment) + ' por mês durante ' + action.data.months + ' meses. Nenhum pagamento ou aporte foi executado.');
                     else addMessage('ai','Alteração aplicada. Confira os valores na tela.');
@@ -3577,8 +3575,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             refreshDiagnosis.textContent = 'Atualizar diagnóstico com meus registros';
             refreshDiagnosis.addEventListener('click', () => window.fincontrolRunAutoGeminiAnalysis?.(true));
             overview.insertAdjacentElement('afterend', refreshDiagnosis);
-            // Atalhos de planejamento: o Gemini apenas propõe; validateAction e
-            // window.confirm continuam obrigatórios antes de qualquer gravação.
+            // Pedidos do usuário são validados antes de salvar, sem janelas de confirmação.
             const actionBar = document.createElement('div');
             actionBar.className = 'mt-3 flex flex-wrap gap-2';
             const addGeminiShortcut = (label, prompt) => {
@@ -3589,7 +3586,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 button.addEventListener('click', () => handleSend(prompt));
                 actionBar.appendChild(button);
             };
-            addGeminiShortcut('Propor ajuste das metas', 'Analise minha renda, contas, dívidas, investimentos realizados e metas atuais. Proponha UMA ação save_payoff_plan com valores mensais realistas de investimento e amortização, dívida existente e prazo de até 60 meses. Considere despesas variáveis não cadastradas como incerteza. Explique os motivos. Não registre aportes ou pagamentos; peça confirmação para salvar apenas o planejamento.');
+            addGeminiShortcut('Propor ajuste das metas', 'Analise minha renda, contas, dívidas, investimentos realizados e metas atuais. Proponha UMA ação save_payoff_plan com valores mensais realistas de investimento e amortização, dívida existente e prazo de até 60 meses. Considere despesas variáveis não cadastradas como incerteza. Explique os motivos. Não registre aportes ou pagamentos; salve apenas o planejamento quando solicitado.');
             addGeminiShortcut('Revisar meu cronograma', 'Revise meu cronograma de investimentos e meu plano de quitação com base nos valores efetivamente registrados. Identifique diferenças entre planejado e realizado, riscos e até três melhorias práticas. Não altere dados nesta consulta.');
             btnSend.parentElement.insertAdjacentElement('afterend', actionBar);
             const micButton=document.getElementById('btn-voice-gemini');
@@ -3610,7 +3607,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 recognition.onstart=()=>{listening=true;micButton.disabled=true;voiceStatus.textContent='Ouvindo… fale seu comando.';};
                 recognition.onresult=e=>{
                     const transcript=String(e.results?.[0]?.[0]?.transcript||'').trim().slice(0,500);
-                    if(transcript){userInput.value=transcript;userInput.focus();voiceStatus.textContent='Texto reconhecido. Confira e toque em Enviar; mudanças exigirão confirmação.';}
+                    if(transcript){userInput.value=transcript;userInput.focus();voiceStatus.textContent='Texto reconhecido. Confira e toque em Enviar; mudanças válidas serão salvas ao enviar.';}
                 };
                 recognition.onerror=e=>{voiceStatus.textContent='Não foi possível reconhecer a voz ('+String(e.error||'erro')+'). Tente novamente ou use o teclado.';};
                 recognition.onend=()=>{listening=false;micButton.disabled=false;if(voiceStatus.textContent==='Ouvindo… fale seu comando.')voiceStatus.textContent='Nenhuma fala identificada. Tente novamente.';};
@@ -3816,7 +3813,6 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const month=incomeMonthInput.value;
                 if(!validIncomeMonth(month)){showToast(incomeText('invalidMonth'));return;}
                 if(!Object.prototype.hasOwnProperty.call(state.monthlyIncomeOverrides||{},month))return;
-                if(!window.confirm(incomeText('confirmMonth')))return;
                 delete state.monthlyIncomeOverrides[month];
                 recalculate();refreshIncomeManager();showToast(incomeText('clear'));
             });
@@ -3855,10 +3851,6 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     showToast(investmentRecordLabel('missing'));cancelInvestmentEdit();return;
                 }
                 if(Object.prototype.hasOwnProperty.call(previous,month) && month!==old){
-                    const msg=investmentRecordLabel('confirmOverwrite')
-                        .replace('{amount}',formatBRL(previous[month]))
-                        .replace('{month}',formatInvestmentMonth(month));
-                    if(!window.confirm(msg))return;
                 }
                 state.monthlyInvestments=changeMonthlyInvestment(previous,old,month,amount);
                 saveAppData();
