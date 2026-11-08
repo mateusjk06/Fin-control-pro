@@ -1227,20 +1227,26 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             };
             if (node.nodeType === Node.TEXT_NODE) translateTextNode(node);
             else {
-                const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+                const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+                    acceptNode: textNode => ['SCRIPT','STYLE'].includes(textNode.parentElement?.tagName) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+                });
                 let textNode;
                 while ((textNode = walker.nextNode())) translateTextNode(textNode);
             }
-            if (node.nodeType === Node.ELEMENT_NODE) {
+            const elements = [];
+            if (node.nodeType === Node.ELEMENT_NODE) elements.push(node);
+            if (node.querySelectorAll) elements.push(...node.querySelectorAll('*'));
+            for (const element of elements) {
+                if (['SCRIPT','STYLE'].includes(element.tagName)) continue;
                 const attrs = ['placeholder','title','aria-label'];
-                let savedAttrs = languageAttributeState.get(node);
-                if (!savedAttrs) { savedAttrs = {}; languageAttributeState.set(node, savedAttrs); }
+                let savedAttrs = languageAttributeState.get(element);
+                if (!savedAttrs) { savedAttrs = {}; languageAttributeState.set(element, savedAttrs); }
                 for (const attr of attrs) {
-                    if (!node.hasAttribute(attr)) continue;
-                    const current = node.getAttribute(attr);
+                    if (!element.hasAttribute(attr)) continue;
+                    const current = element.getAttribute(attr);
                     if (savedAttrs[attr] === undefined || current !== savedAttrs[attr + ':last']) savedAttrs[attr] = current;
                     const translated = translateUiText(savedAttrs[attr], activeLanguage);
-                    if (current !== translated) node.setAttribute(attr, translated);
+                    if (current !== translated) element.setAttribute(attr, translated);
                     savedAttrs[attr + ':last'] = translated;
                 }
             }
