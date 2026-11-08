@@ -978,6 +978,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 { id: 1, desc: 'Cartão de Crédito', balance: 4500.0, ratePct: 11.5, minPayment: 450.0 },
                 { id: 2, desc: 'Empréstimo Pessoal', balance: 8000.0, ratePct: 2.5, minPayment: 550.0 }
             ],
+            debtStrategyConfig: { extraMonthly: 300, method: 'avalanche' },
             investmentConfig: {
                 initial: 3000.0,
                 monthly: 1000.0,
@@ -1009,11 +1010,55 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         let cloudSaveTimer = null;
         let authMode = 'login';
 
+
+        function syncDebtStrategyControls() {
+            const extra = document.getElementById('sim-extra-pay');
+            const method = document.getElementById('sim-strategy');
+            if (extra) extra.value = Number(state.debtStrategyConfig && state.debtStrategyConfig.extraMonthly != null ? state.debtStrategyConfig.extraMonthly : 300);
+            if (method) method.value = state.debtStrategyConfig && state.debtStrategyConfig.method === 'snowball' ? 'snowball' : 'avalanche';
+        }
+
+        function simulateDebtPayoff(extraMonthly, method) {
+            const debts = state.debts.map(d => ({
+                balance: Math.max(0, Number(d.balance) || 0),
+                rate: Math.max(0, Number(d.ratePct) || 0) / 100,
+                minimum: Math.max(0, Number(d.minPayment) || 0)
+            })).filter(d => d.balance > 0);
+            if (!debts.length) return { months: 0, interest: 0 };
+            const monthlyBudget = debts.reduce((sum, d) => sum + d.minimum, 0) + Math.max(0, Number(extraMonthly) || 0);
+            if (monthlyBudget <= 0) return { months: 600, interest: 0 };
+            let interestTotal = 0;
+            for (let month = 1; month <= 600; month++) {
+                debts.forEach(d => {
+                    const interest = d.balance * d.rate;
+                    d.balance += interest;
+                    interestTotal += interest;
+                });
+                let minimumsPaid = 0;
+                debts.forEach(d => {
+                    const payment = Math.min(d.balance, d.minimum);
+                    d.balance -= payment;
+                    minimumsPaid += payment;
+                });
+                let available = Math.max(0, monthlyBudget - minimumsPaid);
+                const priority = [...debts].sort((a,b) => method === 'snowball' ? a.balance - b.balance : b.rate - a.rate);
+                for (const d of priority) {
+                    if (available <= 0) break;
+                    const payment = Math.min(d.balance, available);
+                    d.balance -= payment;
+                    available -= payment;
+                }
+                if (debts.every(d => d.balance < 0.01)) return { months: month, interest: interestTotal };
+            }
+            return { months: 600, interest: interestTotal };
+        }
+
         function getAppData() {
             return {
                 income: state.income,
                 bills: state.bills,
                 debts: state.debts,
+                debtStrategyConfig: state.debtStrategyConfig,
                 investmentConfig: state.investmentConfig
             };
         }
@@ -1023,6 +1068,9 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             if (Number.isFinite(saved.income)) state.income = saved.income;
             if (Array.isArray(saved.bills)) state.bills = saved.bills;
             if (Array.isArray(saved.debts)) state.debts = saved.debts;
+            if (saved.debtStrategyConfig && typeof saved.debtStrategyConfig === 'object') {
+                state.debtStrategyConfig = { ...state.debtStrategyConfig, ...saved.debtStrategyConfig };
+            }
             if (saved.investmentConfig && typeof saved.investmentConfig === 'object') {
                 state.investmentConfig = { ...state.investmentConfig, ...saved.investmentConfig };
             }
@@ -1032,6 +1080,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             state.income = 0;
             state.bills = [];
             state.debts = [];
+            state.debtStrategyConfig = { extraMonthly: 300, method: 'avalanche' };
             state.investmentConfig = { initial: 0, monthly: 0, cdiAnnual: 13.6, ratePct: 100, months: 12, useIR: true };
         }
 
@@ -1092,6 +1141,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     });
                 }
                 localStorage.setItem(userStorageKey(user.uid), JSON.stringify(getAppData()));
+                syncDebtStrategyControls();
                 recalculate();
                 const cloudStatus = document.getElementById('cloud-status');
                 if (cloudStatus) cloudStatus.textContent = 'Sincronizado';
@@ -1864,40 +1914,32 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 showToast('Relatório do cronograma exportado para CSV com sucesso!');
             });
 
+            const extraInput = document.getElementById('sim-extra-pay');
+            const strategyInput = document.getElementById('sim-strategy');
+            syncDebtStrategyControls();
+            const persistStrategy = () => {
+                state.debtStrategyConfig = {
+                    extraMonthly: Math.max(0, Number(extraInput.value) || 0),
+                    method: strategyInput.value === 'snowball' ? 'snowball' : 'avalanche'
+                };
+                saveAppData();
+            };
+            extraInput.addEventListener('change', persistStrategy);
+            strategyInput.addEventListener('change', persistStrategy);
             document.getElementById('btn-run-debt-sim').addEventListener('click', () => {
-                const extra = parseFloat(document.getElementById('sim-extra-pay').value) || 0;
-                const strat = document.getElementById('sim-strategy').value;
-                const months = Math.max(6, Math.round(14 - (extra / 100)));
-                const savings = Math.round(1420 + (extra * 1.5));
-                document.getElementById('debt-sim-result').innerHTML = `
-                    <p class="text-slate-400">Tempo total (${strat === 'avalanche' ? 'Avalanche' : 'Bola de Neve'}): <span class="text-emerald-400 font-bold">${months} meses</span></p>
-                    <p class="text-slate-400">Economia estimada em juros: <span class="text-cyan-400 font-bold">R$ ${savings.toLocaleString('pt-BR')},00</span></p>
-                `;
-                showToast('Simulação de quitação recalculada!');
-            });
-        }
-
-        window.addEventListener('DOMContentLoaded', () => {
-            initAuthUI();
-            initTabs();
-            initBudgetChart();
-            initInvestChart();
-            initHistoryChart();
-            initModals();
-            initAlexaSimulator();
-            initGeminiSimulator();
-            auth.onAuthStateChanged(async (user) => {
-                if (user) {
-                    await loadUserData(user);
+                persistStrategy();
+                const extra = state.debtStrategyConfig.extraMonthly;
+                const strat = state.debtStrategyConfig.method;
+                const result = simulateDebtPayoff(extra, strat);
+                if (!result || result.months >= 600) {
+                    document.getElementById('debt-sim-result').innerHTML = '<p class="text-rose-400">Não foi possível quitar as dívidas com os pagamentos mínimos e o aporte informado. Confira os valores cadastrados.</p>';
                 } else {
-                    currentUser = null;
-                    resetStateForNewUser();
-                    document.getElementById('account-email').textContent = '';
-                    document.getElementById('auth-overlay').classList.remove('hidden');
-                    recalculate();
+                    const baseline = simulateDebtPayoff(0, strat);
+                    const savedInterest = Math.max(0, (baseline ? baseline.interest : 0) - result.interest);
+                    document.getElementById('debt-sim-result').innerHTML =
+                        '<p class="text-slate-400">Tempo estimado (' + (strat === 'avalanche' ? 'Avalanche' : 'Bola de Neve') + '): <span class="text-emerald-400 font-bold">' + result.months + ' meses</span></p>' +
+                        '<p class="text-slate-400">Juros estimados no plano: <span class="text-cyan-400 font-bold">' + formatBRL(result.interest) + '</span></p>' +
+                        '<p class="text-slate-400">Economia estimada com o aporte extra: <span class="text-cyan-400 font-bold">' + formatBRL(savedInterest) + '</span></p>';
                 }
+                showToast('Simulação calculada com suas dívidas cadastradas!');
             });
-        });
-    </script>
-</body>
-</html>
