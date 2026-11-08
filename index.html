@@ -1658,7 +1658,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             month.addEventListener('change', load); load();
             save.addEventListener('click', () => {
                 const value = Number(amount.value);
-                if (!/^\\d{4}-\\d{2}$/.test(month.value) || !amount.value.trim() || !Number.isFinite(value) || value < 0) { alert('Escolha um mês e um valor válido.'); return; }
+                if (!/^\d{4}-\d{2}$/.test(month.value) || !amount.value.trim() || !Number.isFinite(value) || value < 0) { alert('Escolha um mês e um valor válido.'); return; }
                 if (!confirm('Você já realizou uma amortização extra de ' + formatBRL(value) + ' em ' + month.value + '? O saldo da dívida não será alterado.')) return;
                 state.monthlyAmortizations ||= {};
                 state.monthlyAmortizations[month.value] = value;
