@@ -30,7 +30,7 @@ async function report(h){
  if(resp.status===401)return h.responseBuilder.speak(w.link).withLinkAccountCard().getResponse();
  if(resp.status===404)return say(h,w.empty);
  if(!resp.ok)return say(h,w.error);
- let d;try{d=await resp.json();}catch{return say(h,w.error);}
+ let d;try{d=await resp.json();}catch(e){return say(h,w.error);}
  const lang=h.requestEnvelope.request.locale||"pt-BR";
  const currency=/^[A-Z]{3}$/.test(d.currency||"")?d.currency:"BRL";
  const money=n=>new Intl.NumberFormat(lang,{style:"currency",currency}).format(Number(n)||0);
