@@ -1,0 +1,50 @@
+{
+  "pt-BR": {
+    "welcome": "Bem-vindo ao FinControl Pro. Você pode consultar seu saldo, contas, dívidas ou investimentos.",
+    "link": "Para continuar, vincule sua conta do FinControl Pro no aplicativo Alexa.",
+    "confirm": "Você quer confirmar esta alteração no FinControl Pro?",
+    "success": "Alteração registrada com sucesso.",
+    "cancel": "Tudo bem, não alterei seus dados.",
+    "missing": "Preciso de mais informações antes de continuar.",
+    "ambiguous": "Encontrei mais de uma conta com esse nome. Qual delas você deseja?",
+    "error": "Não foi possível concluir a solicitação. Seus dados não foram alterados.",
+    "private": "Não posso ler detalhes financeiros sem autenticação.",
+    "help": "Você pode perguntar seu saldo, despesas, contas a vencer e investimentos, ou pedir para registrar uma conta."
+  },
+  "en-US": {
+    "welcome": "Welcome to FinControl Pro. You can check your balance, bills, debts or investments.",
+    "link": "To continue, link your FinControl Pro account in the Alexa app.",
+    "confirm": "Do you want to confirm this change in FinControl Pro?",
+    "success": "Your change was saved.",
+    "cancel": "All right, I haven't changed your data.",
+    "missing": "I need more details before continuing.",
+    "ambiguous": "I found more than one bill with that name. Which one do you mean?",
+    "error": "I couldn't complete that request. Your data was not changed.",
+    "private": "I can't read financial details until you sign in.",
+    "help": "You can ask about balances, expenses, upcoming bills and investments, or ask to add a bill."
+  },
+  "it-IT": {
+    "welcome": "Benvenuto in FinControl Pro. Puoi controllare saldo, bollette, debiti e investimenti.",
+    "link": "Per continuare, collega il tuo account FinControl Pro nell'app Alexa.",
+    "confirm": "Vuoi confermare questa modifica su FinControl Pro?",
+    "success": "Modifica salvata con successo.",
+    "cancel": "Va bene, non ho modificato i tuoi dati.",
+    "missing": "Ho bisogno di maggiori dettagli per continuare.",
+    "ambiguous": "Ho trovato più di una bolletta con questo nome. Quale intendi?",
+    "error": "Non sono riuscito a completare la richiesta. I tuoi dati non sono stati modificati.",
+    "private": "Non posso leggere dati finanziari senza autenticazione.",
+    "help": "Puoi chiedere saldo, spese, bollette in scadenza e investimenti, oppure registrare una bolletta."
+  },
+  "es-ES": {
+    "welcome": "Bienvenido a FinControl Pro. Puedes consultar tu saldo, facturas, deudas e inversiones.",
+    "link": "Para continuar, vincula tu cuenta de FinControl Pro desde la aplicación Alexa.",
+    "confirm": "¿Quieres confirmar este cambio en FinControl Pro?",
+    "success": "Cambio guardado correctamente.",
+    "cancel": "De acuerdo, no he modificado tus datos.",
+    "missing": "Necesito más información para continuar.",
+    "ambiguous": "He encontrado más de una factura con ese nombre. ¿Cuál quieres modificar?",
+    "error": "No pude completar la solicitud. No se han modificado tus datos.",
+    "private": "No puedo consultar datos financieros sin autenticación.",
+    "help": "Puedes preguntar por saldos, gastos, facturas pendientes e inversiones, o pedir que registre una factura."
+  }
+}
