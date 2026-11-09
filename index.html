@@ -359,6 +359,17 @@
         @media (max-width: 350px) {
             #nav-tabs .tab-btn > .mobile-tab-label { font-size: 10px; }
         }
+        /* App-style pictograms with the existing real feature tabs (no ChatGPT). */
+        @media (max-width: 767px) {
+            #nav-tabs .tab-btn i { display: grid; place-items: center; width: 30px; height: 27px; margin: 0 auto; }
+            #nav-tabs [data-tab="dashboard"] i { color: #6ee7b7; }
+            #nav-tabs [data-tab="bills"] i { color: #fbbf24; }
+            #nav-tabs [data-tab="history"] i { color: #60a5fa; }
+            #nav-tabs [data-tab="investments"] i { color: #34d399; }
+            #nav-tabs [data-tab="alexa"] i { color: #22d3ee; }
+            #nav-tabs [data-tab="gemini"] i { color: #c084fc; }
+            #nav-tabs .tab-btn.active { outline: 1px solid rgba(94,234,212,.23); }
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased flex flex-col">
@@ -477,7 +488,7 @@
                         <span class="mobile-tab-label" aria-hidden="true">Contas</span>
                     </button>
                     <button data-tab="history" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
-                        <i class="fa-solid fa-calendar-chart"></i>
+                        <i class="fa-solid fa-chart-column"></i>
                         <span>Análise mensal</span>
                         <span class="mobile-tab-label" aria-hidden="true">Análise</span>
                     </button>
@@ -492,7 +503,7 @@
                         <span class="mobile-tab-label" aria-hidden="true">Alexa</span>
                     </button>
                     <button data-tab="gemini" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
-                        <i class="fa-solid fa-sparkles text-purple-400"></i>
+                        <i class="fa-solid fa-star text-purple-400"></i>
                         <span>Integração Gemini AI</span>
                         <span class="mobile-tab-label" aria-hidden="true">Gemini</span>
                     </button>
@@ -2219,23 +2230,23 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const d=new Date(+m[1],+m[2]-1,+m[3],12);
                 return asKey(d)===s?d:null;
             };
-            const push = (id,title,date) => {
+            const push = (id,title,date,amount) => {
                 if (date && date>=today && date<=horizon && entries.length<200)
-                    entries.push({id:String(id).slice(0,90),title:String(title||'Vencimento').slice(0,65),date:asKey(date)});
+                    entries.push({id:String(id).slice(0,90),title:String(title||'Vencimento').slice(0,65),date:asKey(date),amount:Math.max(0,Number(amount)||0),currency:state.currency||'BRL'});
             };
             for(const bill of (state.bills||[])) {
                 if(bill.paid)continue;
                 const first=parseDate(bill.date);
                 if(!first)continue;
                 const recurrence=bill.repeat||'monthly';
-                if(recurrence==='once') {push('b:'+bill.id,bill.desc,first);continue;}
+                if(recurrence==='once') {push('b:'+bill.id,bill.desc,first,bill.val);continue;}
                 const maxMonths=recurrence==='limited'?Math.max(1,Math.min(120,Number(bill.durationMonths)||1)):120;
                 for(let k=0;k<maxMonths;k++) {
                     const date=new Date(first.getFullYear(),first.getMonth()+k,1,12);
                     const last=new Date(date.getFullYear(),date.getMonth()+1,0).getDate();
                     date.setDate(Math.min(first.getDate(),last));
                     if(date>horizon)break;
-                    push('b:'+bill.id+':'+asKey(date),bill.desc,date);
+                    push('b:'+bill.id+':'+asKey(date),bill.desc,date,bill.val);
                 }
             }
             for(const debt of (state.debts||[])) {
@@ -2244,7 +2255,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 payments.forEach((p,i)=>{
                     if(p.paid)return;
                     const due=parseDate(p.date);
-                    push('d:'+debt.id+':'+i,(debt.desc||'Dívida')+' · parcela '+(i+1),due);
+                    push('d:'+debt.id+':'+i,(debt.desc||'Dívida')+' · parcela '+(i+1),due,p.value??debt.installment??debt.minPayment);
                 });
             }
             return {uid:currentUser.uid,entries};
