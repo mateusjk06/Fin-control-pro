@@ -2,6 +2,7 @@
 // Paste into Alexa-hosted skill lambda/index.js only after OAuth is deployed.
 // Read-only initial rollout. All write commands remain intentionally disabled.
 const Alexa=require("ask-sdk-core");
+const https=require("https");
 const api="https://southamerica-east1-fincontrol-pro-6cc5d.cloudfunctions.net/alexaOAuth?action=summary";
 const words={
  "pt-BR":{welcome:"Bem-vindo ao FinControl Pro. Pergunte quais contas estão pendentes ou qual o total de suas dívidas.",link:"Vincule sua conta do FinControl Pro no aplicativo Alexa antes de consultar seus dados.",empty:"Não encontrei dados financeiros nesta conta.",error:"Não consegui acessar seus dados agora. Tente novamente mais tarde.",future:"Esse comando ainda está em preparação. Nenhuma alteração foi feita.",help:"Você pode perguntar sobre contas a vencer e dívidas.",bills:"Você tem {count} contas pendentes, com total de {total}.",debt:"Seu saldo total de dívidas é {total}.",upcoming:"As próximas contas são: {items}.",none:"Não há contas com vencimento cadastrado."},
@@ -18,19 +19,39 @@ function say(h,message,reprompt){
  if(reprompt)b.reprompt(reprompt);
  return b.getResponse();
 }
+function getSummary(accessToken){
+ return new Promise((resolve,reject)=>{
+  const request=https.get(api,{headers:{Authorization:"Bearer "+accessToken},timeout:9000},response=>{
+   let body="";
+   response.setEncoding("utf8");
+   response.on("data",chunk=>{
+    body+=chunk;
+    if(body.length>65536)response.destroy(new Error("Response too large"));
+   });
+   response.on("end",()=>{
+    let data=null;
+    try{data=JSON.parse(body);}catch(error){
+     if(response.statusCode===200)return reject(error);
+    }
+    resolve({status:response.statusCode,data:data});
+   });
+   response.on("error",reject);
+  });
+  request.on("timeout",()=>request.destroy(new Error("Timeout")));
+  request.on("error",reject);
+ });
+}
 async function report(h){
  const w=locale(h);
  const token=(((h.requestEnvelope||{}).context||{}).System||{}).user;
  const accessToken=token ? token.accessToken : null;
  if(!accessToken)return h.responseBuilder.speak(w.link).withLinkAccountCard().getResponse();
  let resp;
- try{
-  resp=await fetch(api,{headers:{Authorization:"Bearer "+accessToken},signal:AbortSignal.timeout(9000)});
- }catch(e){return say(h,w.error);}
+ try{resp=await getSummary(accessToken);}catch(e){return say(h,w.error);}
  if(resp.status===401)return h.responseBuilder.speak(w.link).withLinkAccountCard().getResponse();
  if(resp.status===404)return say(h,w.empty);
- if(!resp.ok)return say(h,w.error);
- let d;try{d=await resp.json();}catch(e){return say(h,w.error);}
+ if(resp.status!==200||!resp.data)return say(h,w.error);
+ const d=resp.data;
  const lang=h.requestEnvelope.request.locale||"pt-BR";
  const currency=/^[A-Z]{3}$/.test(d.currency||"")?d.currency:"BRL";
  const money=n=>new Intl.NumberFormat(lang,{style:"currency",currency}).format(Number(n)||0);
