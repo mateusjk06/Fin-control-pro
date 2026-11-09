@@ -335,6 +335,30 @@
             #btn-send-gemini { width: 62px; min-width: 62px; font-size: 11px; }
             #btn-voice-gemini { width: 42px; min-width: 42px; }
         }
+        /* Mobile navigation: concise labels and complete scroll clearance */
+        .mobile-tab-label { display: none; }
+        @media (max-width: 767px) {
+            body { padding-bottom: calc(128px + env(safe-area-inset-bottom)) !important; }
+            main.max-w-7xl { padding-bottom: calc(54px + env(safe-area-inset-bottom)); }
+            #nav-tabs .tab-btn { min-height: 62px; }
+            #nav-tabs .tab-btn > span:not(.mobile-tab-label) { display: none; }
+            #nav-tabs .tab-btn > .mobile-tab-label {
+                display: block;
+                font-size: 11px;
+                line-height: 1.2;
+                width: 100%;
+                white-space: nowrap;
+                overflow: visible;
+                text-overflow: clip;
+            }
+            #nav-tabs .tab-btn { flex: 0 0 calc((100% - 16px) / 5); min-width: 0; max-width: none; }
+            #nav-tabs .tab-btn i { font-size: 20px; }
+            #tab-dashboard .relative.h-64 { height: 240px; }
+            #chart-budget, #chart-history, #chart-investment { max-width: 100%; }
+        }
+        @media (max-width: 350px) {
+            #nav-tabs .tab-btn > .mobile-tab-label { font-size: 10px; }
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased flex flex-col">
@@ -432,26 +456,32 @@
                     <button data-tab="dashboard" class="tab-btn active py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
                         <i class="fa-solid fa-chart-pie"></i>
                         <span>Dashboard</span>
+                        <span class="mobile-tab-label" aria-hidden="true">Início</span>
                     </button>
                     <button data-tab="bills" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
                         <i class="fa-solid fa-receipt"></i>
                         <span>Contas & Dívidas</span>
+                        <span class="mobile-tab-label" aria-hidden="true">Contas</span>
                     </button>
                     <button data-tab="history" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
                         <i class="fa-solid fa-calendar-chart"></i>
                         <span>Análise mensal</span>
+                        <span class="mobile-tab-label" aria-hidden="true">Análise</span>
                     </button>
                     <button data-tab="investments" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
                         <i class="fa-solid fa-chart-line"></i>
                         <span>Cronograma de Investimentos</span>
+                        <span class="mobile-tab-label" aria-hidden="true">Investir</span>
                     </button>
                     <button data-tab="alexa" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
                         <i class="fa-solid fa-microphone text-cyan-400"></i>
                         <span>Integração Alexa</span>
+                        <span class="mobile-tab-label" aria-hidden="true">Alexa</span>
                     </button>
                     <button data-tab="gemini" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
                         <i class="fa-solid fa-sparkles text-purple-400"></i>
                         <span>Integração Gemini AI</span>
+                        <span class="mobile-tab-label" aria-hidden="true">Gemini</span>
                     </button>
                 </nav>
             </div>
@@ -1616,10 +1646,24 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 if (code.textContent !== shown) code.textContent = shown;
             }
         }
+        function updateMobileNavLabels() {
+            const translations = {
+                pt: {dashboard:'Início',bills:'Contas',history:'Análise',investments:'Investir',alexa:'Alexa',gemini:'Gemini'},
+                en: {dashboard:'Home',bills:'Bills',history:'Analysis',investments:'Invest',alexa:'Alexa',gemini:'Gemini'},
+                es: {dashboard:'Inicio',bills:'Cuentas',history:'Análisis',investments:'Invertir',alexa:'Alexa',gemini:'Gemini'},
+                it: {dashboard:'Home',bills:'Conti',history:'Analisi',investments:'Investi',alexa:'Alexa',gemini:'Gemini'}
+            };
+            const names=translations[activeLanguage]||translations.pt;
+            for(const button of document.querySelectorAll('#nav-tabs [data-tab]')){
+                const short=button.querySelector('.mobile-tab-label');
+                if(short)short.textContent=names[button.dataset.tab]||button.dataset.tab;
+            }
+        }
         function applyLanguage(language) {
             activeLanguage = ['pt','en','es','it'].includes(language) ? language : 'pt';
             try { localStorage.setItem(LANGUAGE_KEY, activeLanguage); } catch (error) {}
             document.documentElement.lang = ({pt:'pt-BR',en:'en',es:'es',it:'it'})[activeLanguage];
+            updateMobileNavLabels();
             if (typeof investChart !== 'undefined' && investChart) {
                 investChart.data.datasets[0].label = translateUiText('Total Investido (Aportes)', activeLanguage);
                 investChart.data.datasets[1].label = translateUiText('Saldo Total (Juros Compostos)', activeLanguage);
