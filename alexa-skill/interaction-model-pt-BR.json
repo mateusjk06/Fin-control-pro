@@ -6,47 +6,43 @@
         {
           "name": "ConsultarSaldoIntent",
           "samples": [
-            "qual meu saldo",
+            "qual é meu saldo",
             "quanto tenho disponível",
-            "me diga meu saldo livre",
-            "qual meu saldo deste mês"
+            "consultar meu saldo"
           ],
           "slots": []
         },
         {
           "name": "ConsultarDespesasIntent",
           "samples": [
-            "quanto gastei este mês",
-            "quanto são minhas despesas",
-            "quais são minhas despesas do mês"
+            "quais são minhas despesas",
+            "quanto gastei este mês"
           ],
           "slots": []
         },
         {
           "name": "ConsultarReceitasIntent",
           "samples": [
-            "quanto recebi este mês",
-            "qual minha renda do mês",
-            "quais foram meus ganhos"
+            "qual minha receita",
+            "quanto recebi este mês"
           ],
           "slots": []
         },
         {
           "name": "ConsultarContasIntent",
           "samples": [
-            "quais contas tenho pendentes",
-            "quais contas vencem esta semana",
+            "quais contas estão pendentes",
             "quais contas vencem hoje",
-            "quais contas vencem amanhã"
+            "quais contas vencem amanhã",
+            "quais contas vencem esta semana"
           ],
           "slots": []
         },
         {
           "name": "ConsultarDividasIntent",
           "samples": [
-            "quanto devo",
-            "qual meu saldo de dívidas",
-            "quais são minhas dívidas"
+            "quais são minhas dívidas",
+            "quanto ainda devo"
           ],
           "slots": []
         },
@@ -54,103 +50,87 @@
           "name": "ConsultarInvestimentosIntent",
           "samples": [
             "quanto tenho investido",
-            "qual meu total investido",
-            "como estão meus investimentos"
+            "consultar meus investimentos"
           ],
           "slots": []
         },
         {
           "name": "ConsultarAnaliseIntent",
           "samples": [
-            "faça minha análise financeira",
-            "como estão minhas finanças",
-            "resuma meu orçamento",
-            "como foi meu mês"
+            "analisar minhas finanças",
+            "faça uma análise do meu mês"
           ],
           "slots": []
         },
         {
           "name": "ConsultarQuitacaoIntent",
           "samples": [
-            "qual a melhor estratégia de quitação",
-            "como posso quitar minhas dívidas mais rápido"
+            "qual estratégia para quitar minhas dívidas",
+            "como posso quitar as dívidas mais rápido"
           ],
           "slots": []
         },
         {
           "name": "CadastrarContaIntent",
           "samples": [
-            "cadastrar uma conta de {descricao} no valor de {valor}",
-            "adicionar despesa de {valor} de {descricao}",
-            "registrar conta de {descricao} no valor de {valor}"
+            "adicionar conta {details}",
+            "registrar despesa {details}"
           ],
           "slots": [
             {
-              "name": "descricao",
+              "name": "details",
               "type": "AMAZON.SearchQuery"
-            },
-            {
-              "name": "valor",
-              "type": "AMAZON.NUMBER"
             }
           ]
         },
         {
           "name": "CadastrarReceitaIntent",
           "samples": [
-            "adicionar receita de {valor} de {descricao}",
-            "registrar ganho de {valor} de {descricao}"
+            "registrar receita {details}",
+            "adicionar ganho {details}"
           ],
           "slots": [
             {
-              "name": "descricao",
+              "name": "details",
               "type": "AMAZON.SearchQuery"
-            },
-            {
-              "name": "valor",
-              "type": "AMAZON.NUMBER"
             }
           ]
         },
         {
           "name": "CadastrarDividaIntent",
           "samples": [
-            "cadastrar dívida de {descricao} no valor de {valor}",
-            "registrar dívida de {valor} de {descricao}"
+            "cadastrar dívida {details}",
+            "adicionar dívida {details}"
           ],
           "slots": [
             {
-              "name": "descricao",
+              "name": "details",
               "type": "AMAZON.SearchQuery"
-            },
-            {
-              "name": "valor",
-              "type": "AMAZON.NUMBER"
             }
           ]
         },
         {
           "name": "RegistrarAporteIntent",
           "samples": [
-            "registrar investimento de {valor}",
-            "adicionar aporte de {valor}"
+            "registrar aporte {details}",
+            "adicionar investimento {details}"
           ],
           "slots": [
             {
-              "name": "valor",
-              "type": "AMAZON.NUMBER"
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
             }
           ]
         },
         {
           "name": "MarcarContaPagaIntent",
           "samples": [
-            "marcar como paga a conta de {descricao}",
-            "paguei a conta de {descricao}"
+            "marcar conta como paga {details}",
+            "registrar pagamento {details}"
           ],
           "slots": [
             {
-              "name": "descricao",
+              "name": "details",
               "type": "AMAZON.SearchQuery"
             }
           ]
@@ -158,46 +138,38 @@
         {
           "name": "AlterarVencimentoIntent",
           "samples": [
-            "alterar vencimento da conta de {descricao} para {data}",
-            "mudar a data da conta de {descricao} para {data}"
+            "alterar vencimento {details}",
+            "mudar data da conta {details}"
           ],
           "slots": [
             {
-              "name": "descricao",
+              "name": "details",
               "type": "AMAZON.SearchQuery"
-            },
-            {
-              "name": "data",
-              "type": "AMAZON.DATE"
             }
           ]
         },
         {
           "name": "AlterarValorIntent",
           "samples": [
-            "alterar valor da conta de {descricao} para {valor}",
-            "mudar a conta de {descricao} para {valor}"
+            "alterar valor da conta {details}",
+            "corrigir valor {details}"
           ],
           "slots": [
             {
-              "name": "descricao",
+              "name": "details",
               "type": "AMAZON.SearchQuery"
-            },
-            {
-              "name": "valor",
-              "type": "AMAZON.NUMBER"
             }
           ]
         },
         {
           "name": "ExcluirContaIntent",
           "samples": [
-            "excluir conta de {descricao}",
-            "apagar conta de {descricao}"
+            "excluir conta {details}",
+            "apagar conta {details}"
           ],
           "slots": [
             {
-              "name": "descricao",
+              "name": "details",
               "type": "AMAZON.SearchQuery"
             }
           ]
