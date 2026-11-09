@@ -20,11 +20,12 @@ function say(h,message,reprompt){
 }
 async function report(h){
  const w=locale(h);
- const token=h.requestEnvelope.context?.System?.user?.accessToken;
- if(!token)return h.responseBuilder.speak(w.link).withLinkAccountCard().getResponse();
+ const token=(((h.requestEnvelope||{}).context||{}).System||{}).user;
+ const accessToken=token ? token.accessToken : null;
+ if(!accessToken)return h.responseBuilder.speak(w.link).withLinkAccountCard().getResponse();
  let resp;
  try{
-  resp=await fetch(api,{headers:{Authorization:"Bearer "+token},signal:AbortSignal.timeout(9000)});
+  resp=await fetch(api,{headers:{Authorization:"Bearer "+accessToken},signal:AbortSignal.timeout(9000)});
  }catch(e){return say(h,w.error);}
  if(resp.status===401)return h.responseBuilder.speak(w.link).withLinkAccountCard().getResponse();
  if(resp.status===404)return say(h,w.empty);
