@@ -1,0 +1,204 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "financial control",
+      "intents": [
+        {
+          "name": "ConsultarSaldoIntent",
+          "samples": [
+            "what is my balance",
+            "how much money is available",
+            "check my free balance"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarDespesasIntent",
+          "samples": [
+            "how much have I spent this month",
+            "show my expenses"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarReceitasIntent",
+          "samples": [
+            "what is my income",
+            "how much did I earn this month"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarContasIntent",
+          "samples": [
+            "what bills are pending",
+            "what bills are due today",
+            "what bills are due tomorrow",
+            "what bills are due this week"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarDividasIntent",
+          "samples": [
+            "what debts do I have",
+            "how much do I owe"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarInvestimentosIntent",
+          "samples": [
+            "how much have I invested",
+            "check my investments"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarAnaliseIntent",
+          "samples": [
+            "analyze my finances",
+            "give me a financial summary"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarQuitacaoIntent",
+          "samples": [
+            "how can I pay off my debt faster",
+            "show my debt payoff strategy"
+          ],
+          "slots": []
+        },
+        {
+          "name": "CadastrarContaIntent",
+          "samples": [
+            "add a bill {details}",
+            "record an expense {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "CadastrarReceitaIntent",
+          "samples": [
+            "record income {details}",
+            "add earnings {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "CadastrarDividaIntent",
+          "samples": [
+            "add a debt {details}",
+            "record a debt {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "RegistrarAporteIntent",
+          "samples": [
+            "record an investment {details}",
+            "add an investment contribution {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "MarcarContaPagaIntent",
+          "samples": [
+            "mark a bill paid {details}",
+            "record bill payment {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "AlterarVencimentoIntent",
+          "samples": [
+            "change bill due date {details}",
+            "update bill date {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "AlterarValorIntent",
+          "samples": [
+            "change bill amount {details}",
+            "correct bill amount {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "ExcluirContaIntent",
+          "samples": [
+            "delete a bill {details}",
+            "remove bill {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.YesIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NoIntent",
+          "samples": []
+        }
+      ]
+    }
+  }
+}
