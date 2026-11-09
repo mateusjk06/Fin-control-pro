@@ -39,6 +39,37 @@ GitHub; não foram importados/compilados pela Amazon e ainda não existe endpoin
 com OAuth publicado para a Skill. Nenhuma Alexa está autorizada a ler ou escrever
 dados financeiros até as próximas etapas.
 
+## Código OAuth preparado para Firebase Blaze (ainda não implantado)
+
+Arquivos adicionados:
+- functions/alexa-oauth.js: autorização OAuth2, PKCE S256 opcional, tokens temporários e rotativos, rota de consulta autenticada por UID Firebase.
+- alexa-skill/link.html: consentimento e login Firebase em página HTTPS do GitHub Pages.
+- alexa-skill/lambda-index.js: código da Skill Amazon para consultar contas e dívidas; demais comandos não realizam modificações.
+- functions/index.js: exporta a função alexaOAuth.
+
+**Situação:** arquivos salvos no GitHub, mas NÃO implantados na AWS/Amazon nem no Firebase. A conexão da Alexa ainda não funciona.
+
+### Implantar com segurança no notebook
+
+1. Verifique que a página https://mateusjk06.github.io/Fin-control-pro/alexa-skill/link.html está publicada.
+2. Na tela Account Linking da Amazon, copie as três Redirect URLs COMPLETAS. Nunca substitua por endereços inventados.
+3. No notebook, instale Node.js e firebase-tools. Faça login com `firebase login` e clone https://github.com/mateusjk06/Fin-control-pro.git.
+4. Na pasta functions, execute `npm install`. Não publique credenciais no repositório.
+5. Configure em terminal os três secrets, todos no projeto fincontrol-pro-6cc5d:
+   - `firebase functions:secrets:set ALEXA_CLIENT_ID --project fincontrol-pro-6cc5d`: escolha um ID público como fincontrol-alexa-v1.
+   - `firebase functions:secrets:set ALEXA_CLIENT_SECRET --project fincontrol-pro-6cc5d`: gere um segredo aleatório no notebook (openssl rand -hex 32). Mantenha privado.
+   - `firebase functions:secrets:set ALEXA_REDIRECT_URIS --project fincontrol-pro-6cc5d`: cole as URLs Amazon exatas separadas por vírgula.
+6. Na raiz do repositório: `firebase deploy --only functions:alexaOAuth --project fincontrol-pro-6cc5d`.
+7. Depois do deploy, preencha no console Alexa:
+   - Authorization URI: https://southamerica-east1-fincontrol-pro-6cc5d.cloudfunctions.net/alexaOAuth?action=authorize
+   - Access Token URI: https://southamerica-east1-fincontrol-pro-6cc5d.cloudfunctions.net/alexaOAuth?action=token
+   - Client ID e Client Secret: os mesmos configurados nos secrets.
+   - Grant: Authorization Code; PKCE S256 quando suportado; skill sem vinculação de conta DESABILITADA.
+8. No editor de código da Skill Amazon, substitua o arquivo lambda/index.js pelo conteúdo de alexa-skill/lambda-index.js, confirme dependência ask-sdk-core e execute Deploy.
+9. Teste primeiro consultas com a Skill em modo Development, depois a vinculação. Somente após testes considere habilitar ações de escrita com confirmação.
+
+**Limitações e segurança:** o fluxo inicial é somente leitura e precisa ser auditado, ter proteção contra abuso, revogação de TODOS os tokens por usuário e testes de integração antes de produção. Desvincular no aplicativo Alexa não garante revogação imediata dos tokens emitidos no servidor. O GitHub Pages precisa estar publicado. O Blaze poderá gerar custos e orçamentos não são travas de cobrança.
+
 ## Etapa A: configurar a Skill (ação manual na Amazon)
 1. Criar/entrar em uma conta em https://developer.amazon.com/alexa/console/ask.
 2. Criar uma **Custom Skill**, idioma **Português (Brasil)**, nome **FinControl Pro**.
