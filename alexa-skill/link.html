@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Autorizar Alexa | FinControl Pro</title>
+<style>
+*{box-sizing:border-box}
+body{background:#081427;color:#e9fff5;font:16px system-ui,sans-serif;max-width:450px;margin:6vh auto;padding:18px}
+main{padding:26px;background:#14263b;border:1px solid #275364;border-radius:20px}
+h1{font-size:24px}input,button{display:block;width:100%;border-radius:10px;padding:14px;margin:14px 0;font-size:16px}
+input{background:#07172b;border:1px solid #46616d;color:white}
+button{background:#20c997;border:0;color:#082721;font-weight:700;cursor:pointer}
+button:disabled{opacity:.55}
+small{color:#b4c9d6;line-height:1.5}#status{color:#ffca9f}
+</style>
+</head>
+<body>
+<main>
+<h1>FinControl <span style="color:#20c997">Pro</span></h1>
+<h2>Conectar com a Alexa</h2>
+<p>Entre com seu login habitual do FinControl Pro para autorizar a Alexa a consultar seus dados financeiros.</p>
+<form id="form">
+<label>E-mail<input type="email" id="email" autocomplete="username" required></label>
+<label>Senha<input type="password" id="password" autocomplete="current-password" required></label>
+<button type="submit" id="send">Entrar e vincular conta</button>
+</form>
+<p id="status" role="alert"></p>
+<small>Esta autorização inicial permite apenas leitura de dados financeiros. Não autoriza pagamentos, transferências ou exclusões. A Alexa somente poderá acessar os dados da conta autenticada.</small>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script>
+"use strict";
+const oauthEndpoint="https://southamerica-east1-fincontrol-pro-6cc5d.cloudfunctions.net/alexaOAuth?action=consent";
+const params=new URLSearchParams(location.search);
+const get=k=>params.get(k)||"";
+const valid=get("response_type")==="code" && get("client_id").length>0 &&
+  get("redirect_uri").startsWith("https://") && get("state").length>=12;
+const status=document.getElementById("status"),button=document.getElementById("send");
+if(!valid){status.textContent="Link de autorização incompleto. Volte ao aplicativo Alexa e tente novamente.";button.disabled=true;}
+firebase.initializeApp({apiKey:"AIzaSyCBYEIKR647HUc4wITL4hltdLD0jRMJ_Pk",authDomain:"fincontrol-pro-6cc5d.firebaseapp.com",projectId:"fincontrol-pro-6cc5d"});
+firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE).catch(()=>{});
+document.getElementById("form").addEventListener("submit",async event=>{
+ event.preventDefault();if(!valid)return;
+ button.disabled=true;status.textContent="Validando conta...";
+ try{
+  const signed=await firebase.auth().signInWithEmailAndPassword(document.getElementById("email").value,document.getElementById("password").value);
+  const idToken=await signed.user.getIdToken();
+  const request={response_type:get("response_type"),client_id:get("client_id"),redirect_uri:get("redirect_uri"),
+    state:get("state"),code_challenge:get("code_challenge"),code_challenge_method:get("code_challenge_method"),idToken};
+  const response=await fetch(oauthEndpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(request)});
+  const data=await response.json();
+  if(!response.ok||!data.redirect)throw new Error(data.error||"Falha");
+  location.replace(data.redirect);
+ }catch(error){
+  console.error("Alexa linking failed:",error.code||error.message);
+  status.textContent="Não foi possível vincular. Confira seu login e tente novamente.";
+  button.disabled=false;
+ }
+});
+</script>
+</body></html>
