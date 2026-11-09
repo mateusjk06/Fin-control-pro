@@ -104,11 +104,11 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 if(name.length()>65)name=name.substring(0,65);
                 if(todayKey.equals(due)) {
                     todayCount++;
-                    if(todayCount<=3)dueToday.append("\\n• ").append(name);
+                    if(todayCount<=3)dueToday.append("\n• ").append(name);
                     seen.add(key);
                 } else if(tomorrowKey.equals(due)) {
                     tomorrowCount++;
-                    if(tomorrowCount<=3)dueTomorrow.append("\\n• ").append(name);
+                    if(tomorrowCount<=3)dueTomorrow.append("\n• ").append(name);
                     seen.add(key);
                 }
             }
@@ -186,7 +186,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
         Notification.Builder builder=Build.VERSION.SDK_INT >= 26
                 ? new Notification.Builder(context, CHANNEL) : new Notification.Builder(context);
         builder.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle(title)
-                .setContentText(body.replace("\\n"," ").trim())
+                .setContentText(body.replace("\n"," ").trim())
                 .setStyle(new Notification.BigTextStyle().bigText(body.trim()))
                 .setAutoCancel(true).setContentIntent(click).setNumber(count);
         manager.notify(id, builder.build());
