@@ -224,8 +224,17 @@ public final class MainActivity extends Activity {
                 String payload=(String)decoded;
                 if (payload.length()>50000)return;
                 ReminderReceiver.saveSchedule(this,payload);
+                pushNativeNotificationHistory();
             } catch (Exception ignored) {}
         });
+    }
+
+    private void pushNativeNotificationHistory() {
+        if(webView==null || !trusted(Uri.parse(webView.getUrl()==null?"":webView.getUrl())))return;
+        String history=ReminderReceiver.historyForCurrentUser(this);
+        String js="window.fincontrolReceiveAndroidAlerts && window.fincontrolReceiveAndroidAlerts("
+                +history+");";
+        webView.evaluateJavascript(js,null);
     }
 
     @Override protected void onResume() {
