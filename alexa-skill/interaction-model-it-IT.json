@@ -1,0 +1,204 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "controllo finanziario",
+      "intents": [
+        {
+          "name": "ConsultarSaldoIntent",
+          "samples": [
+            "qual è il mio saldo",
+            "quanto ho disponibile",
+            "controlla il saldo"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarDespesasIntent",
+          "samples": [
+            "quanto ho speso questo mese",
+            "mostra le mie spese"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarReceitasIntent",
+          "samples": [
+            "qual è il mio reddito",
+            "quanto ho guadagnato questo mese"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarContasIntent",
+          "samples": [
+            "quali bollette devo pagare",
+            "quali bollette scadono oggi",
+            "quali bollette scadono domani",
+            "quali bollette scadono questa settimana"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarDividasIntent",
+          "samples": [
+            "quali debiti ho",
+            "quanto devo ancora pagare"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarInvestimentosIntent",
+          "samples": [
+            "quanto ho investito",
+            "controlla i miei investimenti"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarAnaliseIntent",
+          "samples": [
+            "analizza le mie finanze",
+            "fammi un riepilogo finanziario"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarQuitacaoIntent",
+          "samples": [
+            "come posso estinguere i debiti più velocemente",
+            "mostra il piano di rimborso dei debiti"
+          ],
+          "slots": []
+        },
+        {
+          "name": "CadastrarContaIntent",
+          "samples": [
+            "aggiungi una bolletta {details}",
+            "registra una spesa {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "CadastrarReceitaIntent",
+          "samples": [
+            "registra un'entrata {details}",
+            "aggiungi un guadagno {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "CadastrarDividaIntent",
+          "samples": [
+            "aggiungi un debito {details}",
+            "registra un debito {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "RegistrarAporteIntent",
+          "samples": [
+            "registra un investimento {details}",
+            "aggiungi un versamento {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "MarcarContaPagaIntent",
+          "samples": [
+            "segna una bolletta come pagata {details}",
+            "registra un pagamento {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "AlterarVencimentoIntent",
+          "samples": [
+            "cambia la scadenza della bolletta {details}",
+            "modifica la data di scadenza {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "AlterarValorIntent",
+          "samples": [
+            "modifica l'importo della bolletta {details}",
+            "correggi l'importo {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "ExcluirContaIntent",
+          "samples": [
+            "elimina una bolletta {details}",
+            "cancella la bolletta {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.YesIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NoIntent",
+          "samples": []
+        }
+      ]
+    }
+  }
+}
