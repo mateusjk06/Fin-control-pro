@@ -881,10 +881,10 @@
                         <i class="fa-solid fa-microphone text-cyan-400"></i>
                         <span>Central de Integração Amazon Alexa</span>
                     </h2>
-                    <p class="text-xs text-slate-400">Simule comandos de voz e veja a especificação técnica da Skill completa.</p>
+                    <p class="text-xs text-slate-400">Teste exemplos no simulador. Para usar no aplicativo Alexa ou Echo, ainda é necessário criar a Skill e vincular sua conta com segurança.</p>
                 </div>
                 <span class="text-xs bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-3 py-1 rounded-full font-medium">
-                    Skill Status: Pronta para AWS Lambda
+                    Skill em preparação — ainda não vinculada
                 </span>
             </div>
 
@@ -903,7 +903,8 @@
                             </div>
                         </div>
 
-                        <p class="text-xs text-slate-400 mb-3">Escolha um comando de voz para testar a resposta da Skill em tempo real:</p>
+                        <p class="text-xs text-slate-400 mb-3">Escolha um exemplo para simular a resposta no próprio FinControl. A Alexa ainda não está conectada.</p>
+                        <p class="text-xs text-cyan-300 mb-3">Para ativar no celular, primeiro precisamos criar a Skill na Amazon e configurar uma vinculação segura da conta. Os exemplos não alteram seus dados.</p>
 
                         <div class="space-y-2">
                             <button data-alexa-cmd="saldo" class="btn-alexa-cmd w-full text-left bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 p-3 rounded-lg text-xs text-slate-200 transition flex items-center justify-between">
@@ -3710,13 +3711,13 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     const cmd = btn.getAttribute('data-alexa-cmd');
                     if (cmd === 'saldo') {
                         const free = document.getElementById('hdr-free-balance').innerText;
-                        output.innerText = `"Com base nos seus dados atuais, você tem ${free} de saldo livre estimado para este mês."`;
+                        output.innerText = `"Simulação: seu painel mostra ${free} de saldo livre estimado para este mês."`;
                     } else if (cmd === 'investimento') {
                         const finalVal = document.getElementById('kpi-final-balance').innerText;
-                        output.innerText = `"Considerando seus aportes de 1.000 reais por mês a 120% do CDI, em Junho de 2027 você terá aproximadamente ${finalVal} acumulados."`;
+                        output.innerText = `"Simulação: o valor projetado exibido no cronograma é ${finalVal}. Isso não é uma resposta da Alexa nem uma garantia de rendimento."`;
                     } else if (cmd === 'contas') {
-                        const pendingCount = state.bills.filter(b => !b.paid).length;
-                        output.innerText = `"Você possui ${pendingCount} contas pendentes para vencer neste mês. A próxima é ${state.bills[1].desc} no valor de ${formatBRL(state.bills[1].val)}."`;
+                        const pending = state.bills.filter(b => !b.paid).sort((a,b) => String(a.date||"").localeCompare(String(b.date||"")));
+                        output.innerText = pending.length ? `"Simulação: existem ${pending.length} contas pendentes. A próxima é ${pending[0].desc} no valor de ${formatBRL(pending[0].val)}."` : "Simulação: não há contas pendentes no momento.";
                     } else if (cmd === 'aporte') {
                         output.innerText = "Esta é uma simulação de comando. Nenhum aporte foi registrado.";
                     }
