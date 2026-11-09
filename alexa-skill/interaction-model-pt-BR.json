@@ -1,0 +1,232 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "controle financeiro",
+      "intents": [
+        {
+          "name": "ConsultarSaldoIntent",
+          "samples": [
+            "qual meu saldo",
+            "quanto tenho disponível",
+            "me diga meu saldo livre",
+            "qual meu saldo deste mês"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarDespesasIntent",
+          "samples": [
+            "quanto gastei este mês",
+            "quanto são minhas despesas",
+            "quais são minhas despesas do mês"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarReceitasIntent",
+          "samples": [
+            "quanto recebi este mês",
+            "qual minha renda do mês",
+            "quais foram meus ganhos"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarContasIntent",
+          "samples": [
+            "quais contas tenho pendentes",
+            "quais contas vencem esta semana",
+            "quais contas vencem hoje",
+            "quais contas vencem amanhã"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarDividasIntent",
+          "samples": [
+            "quanto devo",
+            "qual meu saldo de dívidas",
+            "quais são minhas dívidas"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarInvestimentosIntent",
+          "samples": [
+            "quanto tenho investido",
+            "qual meu total investido",
+            "como estão meus investimentos"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarAnaliseIntent",
+          "samples": [
+            "faça minha análise financeira",
+            "como estão minhas finanças",
+            "resuma meu orçamento",
+            "como foi meu mês"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarQuitacaoIntent",
+          "samples": [
+            "qual a melhor estratégia de quitação",
+            "como posso quitar minhas dívidas mais rápido"
+          ],
+          "slots": []
+        },
+        {
+          "name": "CadastrarContaIntent",
+          "samples": [
+            "cadastrar uma conta de {descricao} no valor de {valor}",
+            "adicionar despesa de {valor} de {descricao}",
+            "registrar conta de {descricao} no valor de {valor}"
+          ],
+          "slots": [
+            {
+              "name": "descricao",
+              "type": "AMAZON.SearchQuery"
+            },
+            {
+              "name": "valor",
+              "type": "AMAZON.NUMBER"
+            }
+          ]
+        },
+        {
+          "name": "CadastrarReceitaIntent",
+          "samples": [
+            "adicionar receita de {valor} de {descricao}",
+            "registrar ganho de {valor} de {descricao}"
+          ],
+          "slots": [
+            {
+              "name": "descricao",
+              "type": "AMAZON.SearchQuery"
+            },
+            {
+              "name": "valor",
+              "type": "AMAZON.NUMBER"
+            }
+          ]
+        },
+        {
+          "name": "CadastrarDividaIntent",
+          "samples": [
+            "cadastrar dívida de {descricao} no valor de {valor}",
+            "registrar dívida de {valor} de {descricao}"
+          ],
+          "slots": [
+            {
+              "name": "descricao",
+              "type": "AMAZON.SearchQuery"
+            },
+            {
+              "name": "valor",
+              "type": "AMAZON.NUMBER"
+            }
+          ]
+        },
+        {
+          "name": "RegistrarAporteIntent",
+          "samples": [
+            "registrar investimento de {valor}",
+            "adicionar aporte de {valor}"
+          ],
+          "slots": [
+            {
+              "name": "valor",
+              "type": "AMAZON.NUMBER"
+            }
+          ]
+        },
+        {
+          "name": "MarcarContaPagaIntent",
+          "samples": [
+            "marcar como paga a conta de {descricao}",
+            "paguei a conta de {descricao}"
+          ],
+          "slots": [
+            {
+              "name": "descricao",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "AlterarVencimentoIntent",
+          "samples": [
+            "alterar vencimento da conta de {descricao} para {data}",
+            "mudar a data da conta de {descricao} para {data}"
+          ],
+          "slots": [
+            {
+              "name": "descricao",
+              "type": "AMAZON.SearchQuery"
+            },
+            {
+              "name": "data",
+              "type": "AMAZON.DATE"
+            }
+          ]
+        },
+        {
+          "name": "AlterarValorIntent",
+          "samples": [
+            "alterar valor da conta de {descricao} para {valor}",
+            "mudar a conta de {descricao} para {valor}"
+          ],
+          "slots": [
+            {
+              "name": "descricao",
+              "type": "AMAZON.SearchQuery"
+            },
+            {
+              "name": "valor",
+              "type": "AMAZON.NUMBER"
+            }
+          ]
+        },
+        {
+          "name": "ExcluirContaIntent",
+          "samples": [
+            "excluir conta de {descricao}",
+            "apagar conta de {descricao}"
+          ],
+          "slots": [
+            {
+              "name": "descricao",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.YesIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NoIntent",
+          "samples": []
+        }
+      ]
+    }
+  }
+}
