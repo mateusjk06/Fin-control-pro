@@ -418,7 +418,7 @@
                     <div id="notification-center-panel" class="hidden absolute right-0 top-full z-[80] mt-2 w-[min(92vw,380px)] max-h-[75dvh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-2xl">
                         <div class="mb-3 flex items-center justify-between gap-3">
                             <h3 id="notification-center-title" class="text-sm font-bold text-white">Notificações</h3>
-                            <button id="notification-mark-read" type="button" class="rounded-lg border border-slate-700 px-2 py-2 text-xs text-emerald-300">Marcar como lidas</button>
+                            <div class="flex flex-wrap items-center justify-end gap-2"><button id="notification-mark-read" type="button" class="rounded-lg border border-slate-700 px-2 py-2 text-xs text-emerald-300">Marcar como lidas</button><button id="notification-clear-all" type="button" class="rounded-lg border border-rose-700/60 px-2 py-2 text-xs text-rose-300">Limpar histórico</button></div>
                         </div>
                         <div id="notification-center-list" role="list" aria-live="polite" class="space-y-2"></div>
                         <p id="notification-center-help" class="mt-3 text-[11px] text-slate-400">Histórico de avisos registrados neste aparelho, não de todas as mensagens do sistema.</p>
@@ -2025,10 +2025,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         const ALERTS_KEY = 'fincontrol-alert-history-v1';
         function notificationWords() {
             const dict={
-                pt:{title:'Notificações',read:'Marcar como lidas',empty:'Nenhuma notificação registrada neste aparelho.',help:'Avisos de vencimento recebidos neste aparelho. Histórico local, não sincronizado com outros celulares.'},
-                it:{title:'Notifiche',read:'Segna come lette',empty:'Nessuna notifica registrata su questo dispositivo.',help:'Avvisi di scadenza ricevuti su questo dispositivo. Cronologia locale, non sincronizzata.'},
-                en:{title:'Notifications',read:'Mark as read',empty:'No notifications recorded on this device.',help:'Due-date alerts received on this device. Local history is not synced.'},
-                es:{title:'Notificaciones',read:'Marcar como leídas',empty:'No hay notificaciones registradas en este dispositivo.',help:'Avisos de vencimiento recibidos en este dispositivo. Historial local no sincronizado.'}
+                pt:{title:'Notificações',read:'Marcar como lidas',clear:'Limpar histórico',remove:'Excluir',confirm:'Excluir todo o histórico de notificações deste aparelho? Isso não cancela os próximos lembretes.',empty:'Nenhuma notificação registrada neste aparelho.',help:'Avisos de vencimento recebidos neste aparelho. Histórico local, não sincronizado com outros celulares.'},
+                it:{title:'Notifiche',read:'Segna come lette',clear:'Svuota cronologia',remove:'Elimina',confirm:'Eliminare tutta la cronologia delle notifiche? I promemoria futuri resteranno attivi.',empty:'Nessuna notifica registrata su questo dispositivo.',help:'Avvisi di scadenza ricevuti su questo dispositivo. Cronologia locale, non sincronizzata.'},
+                en:{title:'Notifications',read:'Mark as read',clear:'Clear history',remove:'Delete',confirm:'Clear notification history on this device? Future reminders remain active.',empty:'No notifications recorded on this device.',help:'Due-date alerts received on this device. Local history is not synced.'},
+                es:{title:'Notificaciones',read:'Marcar como leídas',clear:'Borrar historial',remove:'Eliminar',confirm:'¿Borrar todo el historial? Los recordatorios futuros seguirán activos.',empty:'No hay notificaciones registradas en este dispositivo.',help:'Avisos de vencimiento recibidos en este dispositivo. Historial local no sincronizado.'}
             };
             return dict[activeLanguage]||dict.pt;
         }
@@ -2038,6 +2038,22 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const data=JSON.parse(localStorage.getItem(ALERTS_KEY+':'+currentUser.uid)||'[]');
                 return Array.isArray(data)?data.filter(a=>a && typeof a.id==='string').slice(0,50):[];
             }catch(e){return [];}
+        }
+        const HIDDEN_ALERTS_KEY='fincontrol-hidden-alerts-v1';
+        function getHiddenNotificationIds(){
+            if(!currentUser)return [];
+            try{
+                const raw=JSON.parse(localStorage.getItem(HIDDEN_ALERTS_KEY+':'+currentUser.uid)||'[]');
+                return Array.isArray(raw)?raw.filter(id=>typeof id==='string').slice(-500):[];
+            }catch(e){return [];}
+        }
+        function hideNotificationIds(ids){
+            if(!currentUser)return;
+            const hidden=[...new Set([...getHiddenNotificationIds(),...ids])].slice(-500);
+            try{localStorage.setItem(HIDDEN_ALERTS_KEY+':'+currentUser.uid,JSON.stringify(hidden));}catch(e){}
+        }
+        function readableNotificationBody(value){
+            return String(value||'').split(String.fromCharCode(92)+'n').join(String.fromCharCode(10));
         }
         function setNotificationHistory(list) {
             if(!currentUser)return;
@@ -2050,6 +2066,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const w=notificationWords();
             document.getElementById('notification-center-title').textContent=w.title;
             document.getElementById('notification-mark-read').textContent=w.read;
+            document.getElementById('notification-clear-all').textContent=w.clear;
             document.getElementById('notification-center-help').textContent=w.help;
             list.replaceChildren();
             const alerts=getNotificationHistory();
@@ -2077,12 +2094,21 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 title.textContent=String(item.title||w.title).slice(0,120);
                 const detail=document.createElement('p');
                 detail.className='mt-1 whitespace-pre-line break-words text-xs text-slate-300';
-                detail.textContent=String(item.body||'').slice(0,500);
+                detail.textContent=readableNotificationBody(item.body).slice(0,500);
                 const time=document.createElement('p');
                 time.className='mt-2 text-[11px] text-slate-500';
                 time.textContent=Number.isFinite(Number(item.timestamp))
                     ?new Date(Number(item.timestamp)).toLocaleString(locale):'';
-                row.append(title,detail,time);
+                const remove=document.createElement('button');
+                remove.type='button';
+                remove.className='mt-2 rounded-lg border border-rose-700/50 px-3 py-2 text-xs text-rose-300';
+                remove.textContent=w.remove;
+                remove.setAttribute('aria-label',w.remove+': '+String(item.title||w.title));
+                remove.addEventListener('click',()=>{
+                    hideNotificationIds([item.id]);
+                    setNotificationHistory(getNotificationHistory().filter(a=>a.id!==item.id));
+                });
+                row.append(title,detail,time,remove);
                 list.appendChild(row);
             }
         }
@@ -2090,7 +2116,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         window.fincontrolReceiveAndroidAlerts=function(items){
             if(!currentUser || !Array.isArray(items))return;
             const old=getNotificationHistory();
-            const seen=new Set(old.map(item=>item.id));
+            const seen=new Set([...old.map(item=>item.id),...getHiddenNotificationIds()]);
             for(const item of items){
                 if(!item || item.uid!==currentUser.uid || typeof item.id!=='string')continue;
                 const id='android:'+item.id;
@@ -2120,6 +2146,13 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             });
             document.getElementById('notification-mark-read').addEventListener('click',()=>{
                 setNotificationHistory(getNotificationHistory().map(item=>({...item,read:true})));
+            });
+            document.getElementById('notification-clear-all').addEventListener('click',()=>{
+                const alerts=getNotificationHistory();
+                if(!alerts.length)return;
+                if(!confirm(notificationWords().confirm))return;
+                hideNotificationIds(alerts.map(item=>item.id));
+                setNotificationHistory([]);
             });
             document.addEventListener('click',event=>{
                 if(!event.target.closest('#account-controls')){
