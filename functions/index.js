@@ -79,3 +79,5 @@ exports.sendDueWhatsAppReminders=onSchedule({
   }
  }
 });
+// Alexa OAuth2 and read-only financial summary endpoint.
+exports.alexaOAuth=require('./alexa-oauth').alexaOAuth;
