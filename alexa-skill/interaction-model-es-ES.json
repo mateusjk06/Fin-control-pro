@@ -1,0 +1,204 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "control financiero",
+      "intents": [
+        {
+          "name": "ConsultarSaldoIntent",
+          "samples": [
+            "cuál es mi saldo",
+            "cuánto dinero tengo disponible",
+            "consultar mi saldo"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarDespesasIntent",
+          "samples": [
+            "cuánto gasté este mes",
+            "mostrar mis gastos"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarReceitasIntent",
+          "samples": [
+            "cuáles son mis ingresos",
+            "cuánto gané este mes"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarContasIntent",
+          "samples": [
+            "qué facturas tengo pendientes",
+            "qué facturas vencen hoy",
+            "qué facturas vencen mañana",
+            "qué facturas vencen esta semana"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarDividasIntent",
+          "samples": [
+            "qué deudas tengo",
+            "cuánto dinero debo"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarInvestimentosIntent",
+          "samples": [
+            "cuánto tengo invertido",
+            "consultar mis inversiones"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarAnaliseIntent",
+          "samples": [
+            "analiza mis finanzas",
+            "dame un resumen financiero"
+          ],
+          "slots": []
+        },
+        {
+          "name": "ConsultarQuitacaoIntent",
+          "samples": [
+            "cómo puedo pagar mis deudas más rápido",
+            "muestra el plan para pagar mis deudas"
+          ],
+          "slots": []
+        },
+        {
+          "name": "CadastrarContaIntent",
+          "samples": [
+            "añade una factura {details}",
+            "registra un gasto {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "CadastrarReceitaIntent",
+          "samples": [
+            "registra un ingreso {details}",
+            "añade una ganancia {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "CadastrarDividaIntent",
+          "samples": [
+            "añade una deuda {details}",
+            "registra una deuda {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "RegistrarAporteIntent",
+          "samples": [
+            "registra una inversión {details}",
+            "añade una aportación {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "MarcarContaPagaIntent",
+          "samples": [
+            "marca una factura como pagada {details}",
+            "registra un pago {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "AlterarVencimentoIntent",
+          "samples": [
+            "cambia la fecha de vencimiento {details}",
+            "modifica la fecha de la factura {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "AlterarValorIntent",
+          "samples": [
+            "cambia el importe de la factura {details}",
+            "corrige el importe {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "ExcluirContaIntent",
+          "samples": [
+            "elimina una factura {details}",
+            "borra la factura {details}"
+          ],
+          "slots": [
+            {
+              "name": "details",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.YesIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NoIntent",
+          "samples": []
+        }
+      ]
+    }
+  }
+}
