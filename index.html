@@ -410,7 +410,20 @@
                     </div>
                 </div>
 
-                <div id="account-controls" class="relative flex items-center gap-3"><button id="btn-settings" type="button" aria-expanded="false" class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white"><i class="fa-solid fa-gear mr-1"></i>Configurações</button><div id="settings-panel" class="hidden absolute right-0 top-full z-[70] mt-2 w-[min(90vw,360px)] max-h-[80vh] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-xl space-y-3"><h3 class="font-bold">Configurações da conta</h3><div class="flex flex-col gap-2">
+                <div id="account-controls" class="relative flex items-center gap-2">
+                    <button id="btn-notification-center" type="button" aria-label="Notificações" aria-expanded="false" title="Notificações" class="relative rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-white" style="min-width:44px;min-height:44px">
+                        <i class="fa-solid fa-bell text-base" aria-hidden="true"></i>
+                        <span id="notification-unread-count" class="hidden absolute -top-1 -right-1 min-w-5 h-5 rounded-full bg-rose-500 px-1 text-[10px] text-white font-bold flex items-center justify-center" aria-label="Avisos não lidos"></span>
+                    </button>
+                    <div id="notification-center-panel" class="hidden absolute right-0 top-full z-[80] mt-2 w-[min(92vw,380px)] max-h-[75dvh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-2xl">
+                        <div class="mb-3 flex items-center justify-between gap-3">
+                            <h3 id="notification-center-title" class="text-sm font-bold text-white">Notificações</h3>
+                            <button id="notification-mark-read" type="button" class="rounded-lg border border-slate-700 px-2 py-2 text-xs text-emerald-300">Marcar como lidas</button>
+                        </div>
+                        <div id="notification-center-list" role="list" aria-live="polite" class="space-y-2"></div>
+                        <p id="notification-center-help" class="mt-3 text-[11px] text-slate-400">Histórico de avisos registrados neste aparelho, não de todas as mensagens do sistema.</p>
+                    </div>
+                    <button id="btn-settings" type="button" aria-expanded="false" class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white"><i class="fa-solid fa-gear mr-1"></i>Configurações</button><div id="settings-panel" class="hidden absolute right-0 top-full z-[70] mt-2 w-[min(90vw,360px)] max-h-[80vh] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-xl space-y-3"><h3 class="font-bold">Configurações da conta</h3><div class="flex flex-col gap-2">
                     <label for="language-select" class="sr-only">Idioma</label>
                     <select id="language-select" aria-label="Idioma" class="rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-xs text-slate-200">
                         <option value="pt">🇧🇷 Português</option>
@@ -1664,6 +1677,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             try { localStorage.setItem(LANGUAGE_KEY, activeLanguage); } catch (error) {}
             document.documentElement.lang = ({pt:'pt-BR',en:'en',es:'es',it:'it'})[activeLanguage];
             updateMobileNavLabels();
+            if (typeof renderNotificationCenter === 'function') renderNotificationCenter();
             if (typeof investChart !== 'undefined' && investChart) {
                 investChart.data.datasets[0].label = translateUiText('Total Investido (Aportes)', activeLanguage);
                 investChart.data.datasets[1].label = translateUiText('Saldo Total (Juros Compostos)', activeLanguage);
@@ -2008,13 +2022,123 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             } else {showToast('Atenção: há parcelas vencendo hoje.');}
             try {localStorage.setItem(storageKey,JSON.stringify([...new Set([...sent,...pending.map(x=>x.key)])]));}catch(e){}
         }
+        const ALERTS_KEY = 'fincontrol-alert-history-v1';
+        function notificationWords() {
+            const dict={
+                pt:{title:'Notificações',read:'Marcar como lidas',empty:'Nenhuma notificação registrada neste aparelho.',help:'Avisos de vencimento recebidos neste aparelho. Histórico local, não sincronizado com outros celulares.'},
+                it:{title:'Notifiche',read:'Segna come lette',empty:'Nessuna notifica registrata su questo dispositivo.',help:'Avvisi di scadenza ricevuti su questo dispositivo. Cronologia locale, non sincronizzata.'},
+                en:{title:'Notifications',read:'Mark as read',empty:'No notifications recorded on this device.',help:'Due-date alerts received on this device. Local history is not synced.'},
+                es:{title:'Notificaciones',read:'Marcar como leídas',empty:'No hay notificaciones registradas en este dispositivo.',help:'Avisos de vencimiento recibidos en este dispositivo. Historial local no sincronizado.'}
+            };
+            return dict[activeLanguage]||dict.pt;
+        }
+        function getNotificationHistory() {
+            if(!currentUser)return [];
+            try {
+                const data=JSON.parse(localStorage.getItem(ALERTS_KEY+':'+currentUser.uid)||'[]');
+                return Array.isArray(data)?data.filter(a=>a && typeof a.id==='string').slice(0,50):[];
+            }catch(e){return [];}
+        }
+        function setNotificationHistory(list) {
+            if(!currentUser)return;
+            try{localStorage.setItem(ALERTS_KEY+':'+currentUser.uid,JSON.stringify(list.slice(0,50)));}catch(e){}
+            renderNotificationCenter();
+        }
+        function renderNotificationCenter() {
+            const list=document.getElementById('notification-center-list');
+            if(!list)return;
+            const w=notificationWords();
+            document.getElementById('notification-center-title').textContent=w.title;
+            document.getElementById('notification-mark-read').textContent=w.read;
+            document.getElementById('notification-center-help').textContent=w.help;
+            list.replaceChildren();
+            const alerts=getNotificationHistory();
+            const unread=alerts.filter(item=>!item.read).length;
+            const badge=document.getElementById('notification-unread-count');
+            badge.classList.toggle('hidden',unread===0);
+            badge.textContent=unread>99?'99+':String(unread);
+            const button=document.getElementById('btn-notification-center');
+            button.setAttribute('aria-label',w.title+(unread?' ('+unread+')':''));
+            if(!alerts.length){
+                const empty=document.createElement('p');
+                empty.className='rounded-xl border border-slate-700 bg-slate-950 p-4 text-xs text-slate-400';
+                empty.textContent=w.empty;
+                list.appendChild(empty);
+                return;
+            }
+            alerts.sort((a,b)=>(Number(b.timestamp)||0)-(Number(a.timestamp)||0));
+            const locale={pt:'pt-BR',it:'it-IT',en:'en-US',es:'es-ES'}[activeLanguage]||'pt-BR';
+            for(const item of alerts){
+                const row=document.createElement('div');
+                row.setAttribute('role','listitem');
+                row.className='rounded-xl border p-3 '+(item.read?'border-slate-700 bg-slate-950/70':'border-emerald-500/30 bg-emerald-500/10');
+                const title=document.createElement('p');
+                title.className='text-xs font-semibold text-slate-100';
+                title.textContent=String(item.title||w.title).slice(0,120);
+                const detail=document.createElement('p');
+                detail.className='mt-1 whitespace-pre-line break-words text-xs text-slate-300';
+                detail.textContent=String(item.body||'').slice(0,500);
+                const time=document.createElement('p');
+                time.className='mt-2 text-[11px] text-slate-500';
+                time.textContent=Number.isFinite(Number(item.timestamp))
+                    ?new Date(Number(item.timestamp)).toLocaleString(locale):'';
+                row.append(title,detail,time);
+                list.appendChild(row);
+            }
+        }
+        // Android shares only notifications it has actually generated.
+        window.fincontrolReceiveAndroidAlerts=function(items){
+            if(!currentUser || !Array.isArray(items))return;
+            const old=getNotificationHistory();
+            const seen=new Set(old.map(item=>item.id));
+            for(const item of items){
+                if(!item || item.uid!==currentUser.uid || typeof item.id!=='string')continue;
+                const id='android:'+item.id;
+                if(seen.has(id))continue;
+                old.unshift({id,title:String(item.title||'Notificação').slice(0,120),
+                    body:String(item.body||'').slice(0,500),
+                    timestamp:Number(item.timestamp)||Date.now(),read:false});
+                seen.add(id);
+            }
+            setNotificationHistory(old.sort((a,b)=>b.timestamp-a.timestamp));
+        };
+        function initNotificationCenter() {
+            const button=document.getElementById('btn-notification-center');
+            const panel=document.getElementById('notification-center-panel');
+            const settings=document.getElementById('settings-panel');
+            const settingsButton=document.getElementById('btn-settings');
+            button.addEventListener('click',()=>{
+                if(!currentUser)return showToast('Entre na conta para consultar as notificações.');
+                const open=panel.classList.contains('hidden');
+                panel.classList.toggle('hidden',!open);
+                button.setAttribute('aria-expanded',String(open));
+                if(open){
+                    settings.classList.add('hidden');
+                    settingsButton.setAttribute('aria-expanded','false');
+                    renderNotificationCenter();
+                }
+            });
+            document.getElementById('notification-mark-read').addEventListener('click',()=>{
+                setNotificationHistory(getNotificationHistory().map(item=>({...item,read:true})));
+            });
+            document.addEventListener('click',event=>{
+                if(!event.target.closest('#account-controls')){
+                    panel.classList.add('hidden');button.setAttribute('aria-expanded','false');
+                }
+            });
+            document.addEventListener('keydown',event=>{
+                if(event.key==='Escape'){panel.classList.add('hidden');button.setAttribute('aria-expanded','false');}
+            });
+            renderNotificationCenter();
+        }
+
         function initAccountSettings() {
             const btn=document.getElementById('btn-settings'),panel=document.getElementById('settings-panel');
             const close=()=>{panel.classList.add('hidden');btn.setAttribute('aria-expanded','false');};
             btn.addEventListener('click',()=>{
                 const open=panel.classList.contains('hidden');panel.classList.toggle('hidden',!open);
                 btn.setAttribute('aria-expanded',String(open));
-                if(open){refreshSettingsContacts();checkDebtDueToday();}
+                if(open){document.getElementById('notification-center-panel').classList.add('hidden');document.getElementById('btn-notification-center').setAttribute('aria-expanded','false');refreshSettingsContacts();checkDebtDueToday();}
             });
             document.addEventListener('click',e=>{if(!document.getElementById('account-controls').contains(e.target))close();});
             document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
@@ -2305,6 +2429,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 return;
             }
             overlay.classList.add('hidden');
+            renderNotificationCenter();
             syncCurrencyPicker();
             refreshSettingsContacts();
             checkDebtDueToday();
@@ -4231,6 +4356,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             try { initLanguageSelector(); } catch (error) { console.error('Falha na tradução:', error); }
             try { initCurrencySelector(); } catch (error) { console.error('Falha na seleção de moeda:', error); }
             try { initAccountSettings(); } catch (error) { console.error('Falha nas configurações:', error); }
+            try { initNotificationCenter(); } catch (error) { console.error('Falha na central de notificações:', error); }
             // Registra o observador antes de módulos secundários: erros em gráficos/IA
             // não devem impedir que usuários existentes consigam entrar.
             auth.onAuthStateChanged(async (user) => {
@@ -4241,6 +4367,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     if(cloudUnsubscribe){cloudUnsubscribe();cloudUnsubscribe=null;}
                     clearTimeout(cloudSaveTimer);cloudSaveTimer=null;
                     currentUser = null;
+                    document.getElementById('notification-center-panel')?.classList.add('hidden');
+                    renderNotificationCenter();
                     resetStateForNewUser();
                     try { applyLanguage(activeLanguage); } catch (error) { console.error('Idioma apos sair:', error); }
                     document.getElementById('account-email').textContent = '';
