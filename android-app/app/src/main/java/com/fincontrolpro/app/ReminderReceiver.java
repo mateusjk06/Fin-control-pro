@@ -102,13 +102,18 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 if(seen.contains(key))continue;
                 String name = item.optString("title", "Vencimento");
                 if(name.length()>65)name=name.substring(0,65);
+                String currency=item.optString("currency","BRL");
+                double amount=item.optDouble("amount",0);
+                String sum=amount>0 ? " · "+currency+" "+String.format(Locale.US,"%.2f",amount) : "";
+                String formattedDate=due.length()==10 ? due.substring(8,10)+"/"+due.substring(5,7)+"/"+due.substring(0,4) : due;
+                String itemDetail=name+sum+" · "+formattedDate;
                 if(todayKey.equals(due)) {
                     todayCount++;
-                    if(todayCount<=3)dueToday.append("\n• ").append(name);
+                    dueToday.append("\n• ").append(itemDetail);
                     seen.add(key);
                 } else if(tomorrowKey.equals(due)) {
                     tomorrowCount++;
-                    if(tomorrowCount<=3)dueTomorrow.append("\n• ").append(name);
+                    dueTomorrow.append("\n• ").append(itemDetail);
                     seen.add(key);
                 }
             }
