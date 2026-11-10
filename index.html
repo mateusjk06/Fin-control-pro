@@ -827,7 +827,8 @@
                 <div><h3 class="text-sm font-semibold text-white">Registrar quanto você investiu em cada mês</h3><p class="text-xs text-slate-400 mt-1">Informe o valor efetivamente aplicado. Ele será usado no cronograma no lugar da previsão daquele mês.</p></div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                     <div><label for="inv-record-month" class="block text-xs text-slate-400 mb-1">Mês do aporte</label><input id="inv-record-month" type="month" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white"></div>
-                    <div><label for="inv-record-amount" class="block text-xs text-slate-400 mb-1">Valor investido (R$)</label><input id="inv-record-amount" type="number" min="0" step="0.01" placeholder="Ex.: 500,00" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white"></div>
+<div><label for="inv-record-date" class="block text-xs text-slate-400 mb-1">Data do aporte</label><input id="inv-record-date" type="date" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white"></div>
+                                        <div><label for="inv-record-amount" class="block text-xs text-slate-400 mb-1">Valor investido (R$)</label><input id="inv-record-amount" type="number" min="0" step="0.01" placeholder="Ex.: 500,00" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white"></div>
                     <button id="btn-save-investment-record" type="button" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg px-4 py-2 text-sm">Salvar aporte do mês</button>
                 </div>
                 <div class="flex flex-wrap items-center gap-3"><span id="inv-record-edit-status" class="hidden text-xs text-sky-300" aria-live="polite"></span><button id="btn-cancel-investment-edit" type="button" class="hidden rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:border-sky-400">Cancelar edição</button></div>
@@ -2300,7 +2301,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             if (saved.monthlyAmortizations && typeof saved.monthlyAmortizations === 'object') state.monthlyAmortizations = saved.monthlyAmortizations;
             state.appliedAmortizations = saved.appliedAmortizations && typeof saved.appliedAmortizations === 'object' ? saved.appliedAmortizations : {};
             if (saved.monthlyInvestments && typeof saved.monthlyInvestments === "object" && !Array.isArray(saved.monthlyInvestments)) state.monthlyInvestments = saved.monthlyInvestments;
-            state.investmentEntries = Array.isArray(saved.investmentEntries) ? saved.investmentEntries.filter(e => e && typeof e === "object" && /^(19|20|21)\\d{2}-(0[1-9]|1[0-2])$/.test(e.month) && Number.isFinite(Number(e.amount))).map(e => ({id: e.id || "restored-" + Math.random().toString(36).slice(2), month:e.month, amount:Number(e.amount)})) : null;
+            state.investmentEntries = Array.isArray(saved.investmentEntries) ? saved.investmentEntries.filter(e => e && typeof e === "object" && /^(19|20|21)\\d{2}-(0[1-9]|1[0-2])$/.test(e.month) && Number.isFinite(Number(e.amount))).map(e => ({id: e.id || "restored-" + Math.random().toString(36).slice(2), month:e.month, amount:Number(e.amount), date:/^\\d{4}-\\d{2}-\\d{2}$/.test(e.date || "") ? e.date : null})) : null;
             if (saved.investmentConfig && typeof saved.investmentConfig === 'object') {
                 state.investmentConfig = { ...state.investmentConfig, ...saved.investmentConfig };
             }
@@ -3640,14 +3641,14 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             if (!Array.isArray(state.investmentEntries)) {
                 state.investmentEntries = Object.entries(state.monthlyInvestments || {})
                     .filter(([month, amount]) => validInvestmentMonth(month) && Number.isFinite(Number(amount)))
-                    .map(([month, amount], index) => ({id: 'legacy-' + index + '-' + month, month, amount: Number(amount)}));
+                    .map(([month, amount], index) => ({id: 'legacy-' + index + '-' + month, month, amount: Number(amount), date: null}));
             } else {
                 // Recupera meses que só existiam no formato antigo, sem duplicar os já detalhados.
                 Object.entries(state.monthlyInvestments || {}).forEach(([month, amount]) => {
                     if (!validInvestmentMonth(month) || !Number.isFinite(Number(amount))) return;
                     const recorded = state.investmentEntries.filter(e => e.month === month).reduce((sum,e) => sum + Number(e.amount), 0);
                     const difference = Math.round((Number(amount) - recorded) * 100) / 100;
-                    if (difference > 0.009) state.investmentEntries.push({id:'recovered-' + month + '-' + Math.random().toString(36).slice(2), month, amount:difference});
+                    if (difference > 0.009) state.investmentEntries.push({id:'recovered-' + month + '-' + Math.random().toString(36).slice(2), month, amount:difference, date:null});
                 });
             }
         }
@@ -3677,6 +3678,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             editingInvestmentId = null;
             document.getElementById('inv-record-month').value = currentInvestmentMonthKey();
             document.getElementById('inv-record-amount').value = '';
+            document.getElementById('inv-record-date').value = new Date().toLocaleDateString('en-CA');
             refreshInvestmentEditUI();
         }
         function editInvestmentEntry(id) {
@@ -3686,6 +3688,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             editingInvestmentId = entry.id;
             document.getElementById('inv-record-month').value = entry.month;
             document.getElementById('inv-record-amount').value = entry.amount;
+            document.getElementById('inv-record-date').value = entry.date || '';
             refreshInvestmentEditUI();
             document.getElementById('inv-record-amount').focus();
         }
@@ -3731,7 +3734,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const amount = document.createElement('strong');
                 amount.className = 'text-emerald-400';
                 amount.textContent = formatBRL(Number(r.amount));
-                details.append(month, amount);
+                const date = document.createElement("span");
+                date.className = "text-[11px] text-slate-400";
+                date.textContent = r.date ? "Data: " + r.date.split("-").reverse().join("/") : "Data não registrada";
+                details.append(month, amount, date);
                 const menu = document.createElement('details');
                 menu.className = 'relative shrink-0';
                 const summary = document.createElement('summary');
@@ -4519,10 +4525,12 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
             const recordMonthInput = document.getElementById('inv-record-month');
             if (recordMonthInput) recordMonthInput.value = currentInvestmentMonthKey();
+            document.getElementById('inv-record-date').value = new Date().toLocaleDateString('en-CA');
             document.getElementById('btn-save-investment-record').addEventListener('click', () => {
                 const month=recordMonthInput.value;
                 const raw=document.getElementById('inv-record-amount').value;
                 const amount=Number(raw);
+                const date = document.getElementById('inv-record-date').value || null;
                 if(!validInvestmentMonth(month)||raw.trim()===''||!Number.isFinite(amount)||amount<0){
                     showToast(investmentRecordLabel('invalid'));return;
                 }
@@ -4533,8 +4541,9 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     if (!entry) { showToast(investmentRecordLabel('missing')); cancelInvestmentEdit(); return; }
                     entry.month = month;
                     entry.amount = Math.round(amount * 100) / 100;
+                    entry.date = date;
                 } else {
-                    state.investmentEntries.push({id: 'aporte-' + Date.now() + '-' + Math.random().toString(36).slice(2,8), month, amount: Math.round(amount * 100) / 100});
+                    state.investmentEntries.push({id: 'aporte-' + Date.now() + '-' + Math.random().toString(36).slice(2,8), month, amount: Math.round(amount * 100) / 100, date});
                 }
                 syncInvestmentMonthlyTotals();
                 saveAppData();
