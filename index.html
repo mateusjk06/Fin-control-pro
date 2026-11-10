@@ -646,11 +646,14 @@
                     <p class="text-xs text-slate-400">Cadastre suas obrigações mensais, altere status e simule planos de quitação.</p>
                 </div>
                 <div class="flex space-x-2">
-                    <button id="btn-add-bill" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                    <button id="btn-add-unified" type="button" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2">
+                        <i class="fa-solid fa-plus"></i><span>Nova conta ou dívida</span>
+                    </button>
+                    <button id="btn-add-bill" style="display:none" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center space-x-2">
                         <i class="fa-solid fa-plus"></i>
                         <span>Nova Conta</span>
                     </button>
-                    <button id="btn-add-debt" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center space-x-2">
+                    <button id="btn-add-debt" style="display:none" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center space-x-2">
                         <i class="fa-solid fa-plus"></i>
                         <span>Nova Dívida</span>
                     </button>
@@ -1174,10 +1177,24 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
     </main>
 
+    <!-- Seletor unificado: preserva os cadastros e edições existentes -->
+    <div id="modal-unified" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="unified-title">
+      <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-5 space-y-4">
+        <div class="flex justify-between items-center gap-3"><h3 id="unified-title" class="font-bold text-white">Nova conta ou dívida</h3><button id="unified-close" type="button" class="text-slate-300 bg-slate-800 rounded-lg px-3 py-2" aria-label="Fechar">✕</button></div>
+        <p class="text-xs text-slate-400">Escolha como este pagamento será organizado.</p>
+        <div class="grid gap-3">
+          <button type="button" data-unified-type="once" class="text-left rounded-lg border border-slate-700 hover:border-emerald-500 bg-slate-950 p-4 text-white"><strong>Conta única</strong><span class="block text-xs text-slate-400 mt-1">Um pagamento, na data exata escolhida.</span></button>
+          <button type="button" data-unified-type="monthly" class="text-left rounded-lg border border-slate-700 hover:border-emerald-500 bg-slate-950 p-4 text-white"><strong>Conta fixa mensal</strong><span class="block text-xs text-slate-400 mt-1">Repete todos os meses, no dia escolhido.</span></button>
+          <button type="button" data-unified-type="installments" class="text-left rounded-lg border border-slate-700 hover:border-emerald-500 bg-slate-950 p-4 text-white"><strong>Conta parcelada</strong><span class="block text-xs text-slate-400 mt-1">Controle valor, número de parcelas, vencimentos e parcelas pagas.</span></button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal for Adding/Editing Bills -->
-    <div id="modal-bill" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 space-y-4">
+    <div id="modal-bill" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 space-y-4 max-h-[92vh] overflow-y-auto my-auto">
             <h3 id="modal-bill-title" class="text-base font-bold text-white">Adicionar Nova Conta</h3>
+            <p id="bill-repeat-note" class="text-xs text-emerald-300">Conta fixa mensal</p>
             <div class="space-y-3 text-xs">
                 <div>
                     <label class="block text-slate-400 mb-1">Descrição</label>
@@ -1199,9 +1216,13 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                         <input id="inp-bill-val" type="number" step="0.01" min="0.01" required placeholder="250.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
                     </div>
                     <div>
-                        <label class="block text-slate-400 mb-1">Vencimento</label>
-                        <input id="inp-bill-date" type="date" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
+                        <label class="block text-slate-400 mb-1" for="inp-bill-date">Primeiro vencimento</label>
+                        <input id="inp-bill-date" type="date" required aria-describedby="bill-date-help" class="w-full min-w-0 bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500">
                     </div>
+                </div>
+                <div class="bg-slate-950/70 border border-slate-700 rounded-lg p-3 space-y-2">
+                    <p id="bill-date-help" class="text-slate-400 text-[11px]">Toque na data para escolher o dia exato no calendário.</p>
+                    <p id="bill-date-preview" class="text-emerald-300 text-xs" aria-live="polite"></p>
                 </div>
             </div>
             <div class="flex justify-end space-x-2 pt-2">
@@ -1221,10 +1242,11 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
           <label class="text-slate-400">Quantidade de parcelas<input id="debt-count" type="number" min="1" max="600" step="1" value="12" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
           <label class="text-slate-400">Valor da parcela (R$)<input id="debt-installment" type="number" min="0.01" step="0.01" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white" placeholder="Calcular automaticamente"></label>
           <label class="text-slate-400">Juros ao mês (%)<input id="debt-rate" type="number" min="0" step="0.01" value="0" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
-          <label class="text-slate-400">Primeiro vencimento<input id="debt-start" type="date" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
-          <label class="text-slate-400">Próximo vencimento (parcela ainda não paga)<input id="debt-next-due" type="date" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
+          <label class="text-slate-400">Primeiro vencimento<input id="debt-start" type="date" aria-describedby="debt-date-preview" class="mt-1 w-full min-w-0 bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
+          <label class="text-slate-400">Próximo vencimento (opcional, se houve ajuste)<input id="debt-next-due" type="date" class="mt-1 w-full min-w-0 bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
           <label class="text-slate-400">Parcelas já pagas<input id="debt-paid" type="number" min="0" step="1" value="0" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"></label>
         </div>
+        <div class="rounded-lg bg-slate-950 border border-slate-700 p-3 space-y-1"><p class="text-[11px] text-slate-400">Selecione o primeiro vencimento no calendário. Os seguintes serão mensais; para dia 29, 30 ou 31, usa-se o último dia quando necessário.</p><p id="debt-date-preview" class="text-xs text-emerald-300" aria-live="polite"></p></div>
         <p id="debt-modal-help" class="text-[11px] text-slate-400">Se informar o valor da parcela, ele será usado no cronograma. Se deixar vazio, o sistema calcula uma parcela estimada com juros mensais.</p>
         <div class="flex justify-end gap-2"><button id="debt-cancel" class="px-4 py-2 bg-slate-800 rounded-lg text-xs text-white">Cancelar</button><button id="debt-save" class="px-4 py-2 bg-rose-600 rounded-lg text-xs font-semibold text-white">Salvar dívida</button></div>
       </div>
@@ -2614,7 +2636,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             d.setMonth(d.getMonth() + count);
             const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
             d.setDate(Math.min(day, last));
-            return d.toISOString().slice(0, 10);
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
         }
 
         function installmentForDebt(debt, index) {
@@ -2669,9 +2691,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const key = dt.toLocaleDateString(({pt:'pt-BR',it:'it-IT',en:'en-US',es:'es-ES'})[activeLanguage] || 'pt-BR', { month: 'short', year: 'numeric' });
                 const billList = Array.isArray(state.bills) ? state.bills : [];
                 // No mês atual, espelha o total da tela inicial; nos meses futuros, considera apenas contas recorrentes/previstas.
-                const bills = i === 0
-                    ? billList.reduce((sum, bill) => sum + billAmountForAnalysis(bill), 0)
-                    : billList.reduce((sum, bill) => sum + (billOccursInMonth(bill, dt) ? billAmountForAnalysis(bill) : 0), 0);
+                const bills = billList.reduce((sum, bill) =>
+                    sum + (billOccursInMonth(bill, dt) ? billAmountForAnalysis(bill) : 0), 0);
                 let debtPay = 0;
                 state.debts.forEach(debt => {
                     // Dívida ativa: a parcela mínima mensal deve entrar no orçamento,
@@ -2905,8 +2926,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         function recalculate() {
-            const totalBills = state.bills.reduce((acc, b) => acc + b.val, 0);
-            const pendingBills = state.bills.filter(b => !b.paid).reduce((acc, b) => acc + b.val, 0);
+            const thisMonth = new Date();
+            const monthlyBills = state.bills.filter(b => billOccursInMonth(b, thisMonth));
+            const totalBills = monthlyBills.reduce((acc, b) => acc + billAmountForAnalysis(b), 0);
+            const pendingBills = monthlyBills.filter(b => !b.paid).reduce((acc, b) => acc + billAmountForAnalysis(b), 0);
             const totalDebtsPay = state.debts.reduce((acc, d) => acc + d.minPayment, 0);
             const totalDebtBalance = state.debts.reduce((acc, d) => acc + d.balance, 0);
             const monthlyInvest = state.investmentConfig.monthly;
@@ -3136,9 +3159,40 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const localDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
             dueDate.value = existing ? (existing.date || localDate) : localDate;
             const modal = document.getElementById('modal-bill');
+            modal.dataset.repeat = existing ? (existing.repeat || 'monthly') : 'monthly';
+            document.getElementById('bill-repeat-note').textContent = modal.dataset.repeat === 'once' ? 'Conta única — pagamento uma vez' : 'Conta fixa — todos os meses';
+            refreshBillDatePreview();
             modal.classList.remove('hidden');
             modal.classList.add('flex');
             description.focus();
+        }
+        function refreshBillDatePreview() {
+            const date = document.getElementById('inp-bill-date')?.value || '';
+            const repeat = document.getElementById('modal-bill')?.dataset.repeat || 'monthly';
+            const preview = document.getElementById('bill-date-preview');
+            if (!preview) return;
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { preview.textContent = 'Selecione uma data válida.'; return; }
+            const formatted = raw => raw.split('-').reverse().join('/');
+            preview.textContent = repeat === 'once'
+                ? 'Pagamento único em ' + formatted(date) + '.'
+                : 'Primeiro vencimento: ' + formatted(date) + '. Próximos: ' + [1, 2, 3].map(n => formatted(addMonths(date, n))).join(' • ') + '.';
+        }
+        function refreshDebtDatePreview() {
+            const date = document.getElementById('debt-start')?.value || '';
+            const next = document.getElementById('debt-next-due')?.value || '';
+            const count = Math.max(0, Math.floor(Number(document.getElementById('debt-count')?.value) || 0));
+            const paid = Math.max(0, Math.floor(Number(document.getElementById('debt-paid')?.value) || 0));
+            const preview = document.getElementById('debt-date-preview');
+            if (!preview) return;
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { preview.textContent = 'Escolha a data da primeira parcela.'; return; }
+            if (count < 1 || paid > count) { preview.textContent = 'Confira o número de parcelas e parcelas pagas.'; return; }
+            const formatted = raw => raw.split('-').reverse().join('/');
+            const upcoming = Array.from({length: Math.min(3, count-paid)}, (_, index) => {
+                const n = paid + index + 1;
+                const due = next ? addMonths(next, index) : addMonths(date, paid + index);
+                return n + '/' + count + ': ' + formatted(due);
+            });
+            preview.textContent = upcoming.length ? 'Próximas parcelas: ' + upcoming.join(' • ') : 'Todas as parcelas estão marcadas como pagas.';
         }
         function editBill(id) { openBillModal(id); }
         function closeBillModal() {
@@ -4168,6 +4222,29 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const modalBill = document.getElementById('modal-bill');
             const modalIncome = document.getElementById('modal-income');
             const modalDebt = document.getElementById('modal-debt');
+            const unified = document.getElementById('modal-unified');
+            const closeUnified = () => { unified.classList.add('hidden'); unified.classList.remove('flex'); };
+            document.getElementById('btn-add-unified').addEventListener('click', () => {
+                unified.classList.remove('hidden'); unified.classList.add('flex');
+            });
+            document.getElementById('unified-close').addEventListener('click', closeUnified);
+            unified.addEventListener('click', event => { if (event.target === unified) closeUnified(); });
+            unified.querySelectorAll('[data-unified-type]').forEach(button => button.addEventListener('click', () => {
+                const type = button.dataset.unifiedType;
+                closeUnified();
+                if (type === 'installments') {
+                    document.getElementById('btn-add-debt').click();
+                } else {
+                    openBillModal();
+                    const modal = document.getElementById('modal-bill');
+                    modal.dataset.repeat = type;
+                    document.getElementById('bill-repeat-note').textContent = type === 'once' ? 'Conta única — pagamento uma vez' : 'Conta fixa — todos os meses';
+                    refreshBillDatePreview();
+                }
+            }));
+            document.getElementById('inp-bill-date').addEventListener('input', refreshBillDatePreview);
+            ['debt-start', 'debt-next-due', 'debt-count', 'debt-paid'].forEach(id =>
+                document.getElementById(id).addEventListener('input', refreshDebtDatePreview));
 
             document.getElementById('btn-add-debt').addEventListener('click', () => {
                 editingDebtId = null;
@@ -4180,6 +4257,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 document.getElementById('debt-start').value = new Date().toLocaleDateString('en-CA');
                 document.getElementById('debt-next-due').value = '';
                 refreshDebtModalLocale();
+                refreshDebtDatePreview();
                 modalDebt.classList.remove('hidden');
                 modalDebt.classList.add('flex');
             });
@@ -4274,10 +4352,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 if (editingBillId !== null) {
                     const bill = state.bills.find(b => String(b.id) === String(editingBillId));
                     if (!bill) { showToast(billLabel('missing')); closeBillModal(); return; }
-                    Object.assign(bill, { desc, cat, val, date });
+                    Object.assign(bill, { desc, cat, val, date, repeat: document.getElementById('modal-bill').dataset.repeat || bill.repeat || 'monthly' });
                     showToast(billLabel('saved'));
                 } else {
-                    state.bills.push({ id: Date.now(), desc, cat, val, date, paid: false, repeat: 'monthly' });
+                    state.bills.push({ id: Date.now(), desc, cat, val, date, paid: false, repeat: document.getElementById('modal-bill').dataset.repeat === 'once' ? 'once' : 'monthly' });
                     showToast(billLabel('added'));
                 }
                 closeBillModal();
