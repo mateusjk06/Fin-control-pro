@@ -3168,7 +3168,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 card.querySelector('.bill-edit').addEventListener('click', () => editBill(b.id));
                 card.querySelector('.bill-delete').addEventListener('click', () => deleteBill(b.id));
                 card.querySelector('.bill-paid').addEventListener('click', () => toggleBillPaid(b.id));
-                entries.push({due, card});
+                entries.push({due, card, kind:'bill', item:b});
             });
             const debtCards = Array.from(document.querySelectorAll('#debts-list-container > div'));
             state.debts.forEach((d, i) => {
@@ -3193,7 +3193,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     panel.append(edit, remove);
                     card.querySelector('.flex.flex-wrap.justify-end')?.appendChild(menu);
                 }
-                entries.push({due, card});
+                entries.push({due, card, kind:'debt', item:d});
             });
             entries.sort((a, b) => a.due.localeCompare(b.due));
             // Nos últimos itens, abrir o menu para cima evita cortes na tela do celular.
@@ -3206,7 +3206,61 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 }
             });
 
-            entries.forEach(entry => target.appendChild(entry.card));
+            // Layout uniforme e compacto. Os controles originais permanecem nos detalhes.
+            entries.forEach(entry => {
+                const {card, kind, item} = entry;
+                const original = document.createElement('div');
+                original.className = 'payable-expanded-content pt-3 border-t border-slate-700 mt-3';
+                while (card.firstChild) original.appendChild(card.firstChild);
+                card.className = 'rounded-xl border border-slate-700 bg-slate-950 p-3';
+                const top = document.createElement('div');
+                top.className = 'flex items-center gap-2 min-w-0';
+                const summary = document.createElement('div');
+                summary.className = 'flex-1 min-w-0';
+                const name = document.createElement('div');
+                name.className = 'font-semibold text-sm text-white break-words';
+                name.textContent = item.desc || '';
+                const value = document.createElement('div');
+                value.className = 'text-sm font-medium text-emerald-300 mt-1';
+                value.textContent = formatBRL(kind === 'bill' ? item.val : item.minPayment);
+                const info = document.createElement('div');
+                info.className = 'text-xs text-slate-400 mt-1';
+                const dueText = entry.due === '9999-12-31' ? 'Sem vencimento' : entry.due.split('-').reverse().join('/');
+                info.textContent = (kind === 'bill' ? 'Conta' : 'Dívida / empréstimo') + ' · ' + dueText;
+                const status = document.createElement('div');
+                status.className = 'text-xs mt-1 ' + (kind === 'bill' && item.paid ? 'text-emerald-300' : 'text-amber-300');
+                status.textContent = kind === 'bill' ? (item.paid ? 'Paga' : 'Pendente') : (debtPendingIndex(item) >= 0 ? 'Parcela pendente' : 'Sem parcela pendente');
+                summary.append(name, value, info, status);
+                const actions = original.querySelector('details');
+                if (actions) {
+                    actions.classList.add('shrink-0');
+                    const panel = actions.querySelector('div.absolute');
+                    if (panel) {
+                        panel.classList.remove('mt-1', 'bottom-full', 'mb-1');
+                        panel.classList.add('bottom-full', 'mb-1');
+                    }
+                }
+                const disclosure = document.createElement('button');
+                disclosure.type = 'button';
+                disclosure.className = 'shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-slate-200';
+                disclosure.setAttribute('aria-label', 'Expandir detalhes');
+                disclosure.setAttribute('aria-expanded', 'false');
+                disclosure.textContent = '⌄';
+                original.hidden = true;
+                original.style.display = 'none';
+                disclosure.addEventListener('click', () => {
+                    const expanded = original.hidden;
+                    original.hidden = !expanded;
+                    original.style.display = expanded ? 'block' : 'none';
+                    disclosure.setAttribute('aria-expanded', String(expanded));
+                    disclosure.setAttribute('aria-label', expanded ? 'Recolher detalhes' : 'Expandir detalhes');
+                    disclosure.textContent = expanded ? '⌃' : '⌄';
+                });
+                top.append(summary, disclosure);
+                if (actions) top.appendChild(actions);
+                card.append(top, original);
+                target.appendChild(card);
+            });
             const badge = document.getElementById('bills-count-badge');
             if (badge) badge.textContent = entries.length + ' itens cadastrados';
         }
