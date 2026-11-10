@@ -836,7 +836,7 @@
                     <div class="bg-slate-950 rounded-lg p-3"><p class="text-xs text-slate-400">Média por mês registrado</p><p id="inv-record-average" class="text-lg font-bold text-white">R$ 0,00</p></div>
                     <div class="bg-slate-950 rounded-lg p-3"><p class="text-xs text-slate-400">Meses com aporte registrado</p><p id="inv-record-count" class="text-lg font-bold text-cyan-400">0</p></div>
                 </div>
-                <div><h4 class="text-xs font-semibold text-slate-300 mb-2">Histórico de aportes reais</h4><div id="inv-record-list" class="space-y-2 text-xs text-slate-300"><p class="text-slate-500">Nenhum aporte registrado ainda.</p></div><p class="text-[11px] text-slate-500 mt-2">Para corrigir um mês, selecione-o novamente e salve o novo valor.</p></div>
+                <div><h4 class="text-xs font-semibold text-slate-300 mb-2">Histórico de aportes reais</h4><div id="inv-record-list" class="space-y-2 text-xs text-slate-300"><p class="text-slate-500">Nenhum aporte registrado ainda.</p></div><p class="text-[11px] text-slate-500 mt-2">Você pode registrar vários aportes no mesmo mês e editar cada um pelo menu.</p></div>
             </div>
 
             <!-- Investment Chart -->
@@ -3631,99 +3631,113 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         const INVEST_RECORD_LANG = {"pt":{"edit":"Editar","del":"Excluir","cancel":"Cancelar edição","save":"Salvar alterações","normal":"Salvar aporte do mês","editing":"Editando aporte de","invalid":"Informe um mês e um valor válido.","missing":"Aporte não encontrado.","done":"Aporte alterado e análises atualizadas!","created":"Aporte registrado e cronograma atualizado!","deleted":"Aporte excluído e análises atualizadas.","confirmDelete":"Excluir o aporte de {amount} do mês {month}? Nenhum dinheiro será movimentado.","confirmOverwrite":"Já existe um aporte de {amount} em {month}. Deseja substituí-lo?"},"it":{"edit":"Modifica","del":"Elimina","cancel":"Annulla modifica","save":"Salva modifiche","normal":"Salva il versamento del mese","editing":"Modifica del versamento di","invalid":"Inserisci un mese e un importo valido.","missing":"Versamento non trovato.","done":"Versamento aggiornato e analisi ricalcolate!","created":"Versamento registrato e piano aggiornato!","deleted":"Versamento eliminato e analisi aggiornate.","confirmDelete":"Eliminare il versamento di {amount} di {month}? Nessun denaro verrà movimentato.","confirmOverwrite":"Esiste già un versamento di {amount} in {month}. Vuoi sostituirlo?"},"en":{"edit":"Edit","del":"Delete","cancel":"Cancel edit","save":"Save changes","normal":"Save monthly contribution","editing":"Editing contribution for","invalid":"Enter a valid month and amount.","missing":"Contribution not found.","done":"Contribution updated and analysis refreshed!","created":"Contribution saved and schedule updated!","deleted":"Contribution deleted and analysis refreshed.","confirmDelete":"Delete the {amount} contribution for {month}? No money will move.","confirmOverwrite":"A {amount} contribution already exists in {month}. Replace it?"},"es":{"edit":"Editar","del":"Eliminar","cancel":"Cancelar edición","save":"Guardar cambios","normal":"Guardar aporte del mes","editing":"Editando aporte de","invalid":"Introduce un mes e importe válido.","missing":"Aporte no encontrado.","done":"¡Aporte actualizado y análisis recalculados!","created":"¡Aporte registrado y calendario actualizado!","deleted":"Aporte eliminado y análisis actualizados.","confirmDelete":"¿Eliminar el aporte de {amount} de {month}? No se moverá dinero.","confirmOverwrite":"Ya existe un aporte de {amount} en {month}. ¿Quieres reemplazarlo?"}};
         let editingInvestmentMonth = null;
         function investmentRecordLabel(key) { return (INVEST_RECORD_LANG[activeLanguage] || INVEST_RECORD_LANG.pt)[key]; }
-        function validInvestmentMonth(month) { return /^(19|20|21)\d{2}-(0[1-9]|1[0-2])$/.test(month); }
-        function changeMonthlyInvestment(records, fromMonth, toMonth, value) {
-            if (!validInvestmentMonth(toMonth) || !Number.isFinite(value) || value < 0)
-                throw new Error('Aporte inválido');
-            const result = {...records};
-            if (fromMonth && fromMonth !== toMonth) delete result[fromMonth];
-            result[toMonth] = Math.round((value + Number.EPSILON) * 100) / 100;
-            return result;
+        function validInvestmentMonth(month) { return /^(19|20|21)\\d{2}-(0[1-9]|1[0-2])$/.test(month); }
+        let editingInvestmentId = null;
+        function ensureInvestmentEntries() {
+            if (!Array.isArray(state.investmentEntries)) {
+                state.investmentEntries = Object.entries(state.monthlyInvestments || {})
+                    .filter(([month, amount]) => validInvestmentMonth(month) && Number.isFinite(Number(amount)))
+                    .map(([month, amount], index) => ({id: 'legacy-' + index + '-' + month, month, amount: Number(amount)}));
+            }
+        }
+        function syncInvestmentMonthlyTotals() {
+            ensureInvestmentEntries();
+            const totals = {};
+            state.investmentEntries.forEach(entry => {
+                if (validInvestmentMonth(entry.month) && Number.isFinite(Number(entry.amount))) {
+                    totals[entry.month] = Math.round(((totals[entry.month] || 0) + Number(entry.amount)) * 100) / 100;
+                }
+            });
+            state.monthlyInvestments = totals;
         }
         function refreshInvestmentEditUI() {
-            const editing = editingInvestmentMonth !== null;
-            const status=document.getElementById('inv-record-edit-status');
-            const cancel=document.getElementById('btn-cancel-investment-edit');
-            const save=document.getElementById('btn-save-investment-record');
+            const editing = editingInvestmentId !== null;
+            const status = document.getElementById('inv-record-edit-status');
+            const cancel = document.getElementById('btn-cancel-investment-edit');
+            const save = document.getElementById('btn-save-investment-record');
             if (!status || !cancel || !save) return;
             status.classList.toggle('hidden', !editing);
             cancel.classList.toggle('hidden', !editing);
-            status.textContent = editing ? investmentRecordLabel('editing')+' '+formatInvestmentMonth(editingInvestmentMonth) : '';
+            status.textContent = editing ? investmentRecordLabel('editing') + ' ' + formatInvestmentMonth(document.getElementById('inv-record-month').value) : '';
             cancel.textContent = investmentRecordLabel('cancel');
             save.textContent = investmentRecordLabel(editing ? 'save' : 'normal');
         }
-        function cancelInvestmentEdit(){
-            editingInvestmentMonth=null;
-            document.getElementById('inv-record-month').value=currentInvestmentMonthKey();
-            document.getElementById('inv-record-amount').value='';
+        function cancelInvestmentEdit() {
+            editingInvestmentId = null;
+            document.getElementById('inv-record-month').value = currentInvestmentMonthKey();
+            document.getElementById('inv-record-amount').value = '';
             refreshInvestmentEditUI();
         }
-        function editInvestmentEntry(month){
-            if (!Object.prototype.hasOwnProperty.call(state.monthlyInvestments || {},month)) {
-                showToast(investmentRecordLabel('missing'));return;
-            }
-            editingInvestmentMonth=month;
-            document.getElementById('inv-record-month').value=month;
-            document.getElementById('inv-record-amount').value=state.monthlyInvestments[month];
+        function editInvestmentEntry(id) {
+            ensureInvestmentEntries();
+            const entry = state.investmentEntries.find(e => String(e.id) === String(id));
+            if (!entry) { showToast(investmentRecordLabel('missing')); return; }
+            editingInvestmentId = entry.id;
+            document.getElementById('inv-record-month').value = entry.month;
+            document.getElementById('inv-record-amount').value = entry.amount;
             refreshInvestmentEditUI();
             document.getElementById('inv-record-amount').focus();
         }
-        function deleteInvestmentEntry(month){
-            const records=state.monthlyInvestments || {};
-            if (!Object.prototype.hasOwnProperty.call(records,month)) {
-                showToast(investmentRecordLabel('missing'));return;
-            }
-            const question=investmentRecordLabel('confirmDelete')
-                .replace('{amount}',formatBRL(records[month]))
-                .replace('{month}',formatInvestmentMonth(month));
-
-            const updated={...records};
-            delete updated[month];
-            state.monthlyInvestments=updated;
-            if(editingInvestmentMonth===month)cancelInvestmentEdit();
+        function deleteInvestmentEntry(id) {
+            ensureInvestmentEntries();
+            const entry = state.investmentEntries.find(e => String(e.id) === String(id));
+            if (!entry) { showToast(investmentRecordLabel('missing')); return; }
+            if (!confirm(investmentRecordLabel('confirmDelete').replace('{amount}', formatBRL(entry.amount)).replace('{month}', formatInvestmentMonth(entry.month)))) return;
+            state.investmentEntries = state.investmentEntries.filter(e => String(e.id) !== String(id));
+            syncInvestmentMonthlyTotals();
+            if (String(editingInvestmentId) === String(id)) cancelInvestmentEdit();
             saveAppData();
             calculateInvestmentSchedule();
             renderHistoryAnalysis();
             showToast(investmentRecordLabel('deleted'));
         }
-
         function renderInvestmentAnalysis() {
-            const records=Object.entries(state.monthlyInvestments || {})
-                .map(([month,amount])=>({month,amount:Number(amount)}))
-                .filter(r=>validInvestmentMonth(r.month) && Number.isFinite(r.amount) && r.amount>=0)
-                .sort((a,b)=>a.month.localeCompare(b.month));
-            const total=records.reduce((sum,r)=>sum+r.amount,0);
-            document.getElementById('inv-record-total').innerText=formatBRL(total);
-            document.getElementById('inv-record-average').innerText=formatBRL(records.length?total/records.length:0);
-            document.getElementById('inv-record-count').innerText=String(records.length);
-            const list=document.getElementById('inv-record-list');
+            ensureInvestmentEntries();
+            const records = state.investmentEntries.filter(r => validInvestmentMonth(r.month) && Number.isFinite(Number(r.amount)))
+                .slice().sort((a,b) => a.month.localeCompare(b.month));
+            const total = records.reduce((sum,r) => sum + Number(r.amount), 0);
+            document.getElementById('inv-record-total').innerText = formatBRL(total);
+            const months = new Set(records.map(r => r.month));
+            document.getElementById('inv-record-average').innerText = formatBRL(months.size ? total / months.size : 0);
+            document.getElementById('inv-record-count').innerText = String(months.size);
+            const list = document.getElementById('inv-record-list');
             list.replaceChildren();
-            if(!records.length){
-                const empty=document.createElement('p');empty.className='text-slate-500';
-                empty.textContent=translateUiText('Nenhum aporte registrado ainda.',activeLanguage);
-                list.appendChild(empty);return;
+            if (!records.length) {
+                const empty = document.createElement('p');
+                empty.className = 'text-slate-500';
+                empty.textContent = translateUiText('Nenhum aporte registrado ainda.', activeLanguage);
+                list.appendChild(empty);
+                return;
             }
-            records.slice().reverse().forEach(r=>{
-                const row=document.createElement('div');
-                row.className='flex flex-wrap items-center justify-between gap-3 bg-slate-950 rounded-lg px-3 py-2';
-                const details=document.createElement('div');details.className='flex flex-wrap items-center gap-3';
-                const month=document.createElement('span');month.className='capitalize text-slate-300';
-                month.textContent=formatInvestmentMonth(r.month);
-                const amount=document.createElement('strong');amount.className='text-emerald-400';
-                amount.textContent=formatBRL(r.amount);
-                details.append(month,amount);
-                const actions=document.createElement('div');actions.className='flex items-center gap-2';
-                const edit=document.createElement('button');edit.type='button';
-                edit.className='rounded-lg border border-sky-500/40 px-3 py-1.5 text-sky-300 hover:bg-sky-900/30';
-                edit.textContent=investmentRecordLabel('edit');
-                edit.setAttribute('aria-label',investmentRecordLabel('edit')+': '+formatInvestmentMonth(r.month));
-                edit.addEventListener('click',()=>editInvestmentEntry(r.month));
-                const del=document.createElement('button');del.type='button';
-                del.className='rounded-lg border border-rose-500/40 px-3 py-1.5 text-rose-300 hover:bg-rose-900/30';
-                del.textContent=investmentRecordLabel('del');
-                del.setAttribute('aria-label',investmentRecordLabel('del')+': '+formatInvestmentMonth(r.month));
-                del.addEventListener('click',()=>deleteInvestmentEntry(r.month));
-                actions.append(edit,del);row.append(details,actions);list.appendChild(row);
+            records.reverse().forEach(r => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between gap-3 bg-slate-950 rounded-lg px-3 py-2';
+                const details = document.createElement('div');
+                details.className = 'min-w-0 flex flex-col gap-1';
+                const month = document.createElement('span');
+                month.className = 'capitalize text-slate-300';
+                month.textContent = formatInvestmentMonth(r.month);
+                const amount = document.createElement('strong');
+                amount.className = 'text-emerald-400';
+                amount.textContent = formatBRL(Number(r.amount));
+                details.append(month, amount);
+                const menu = document.createElement('details');
+                menu.className = 'relative shrink-0';
+                const summary = document.createElement('summary');
+                summary.className = 'cursor-pointer list-none rounded-lg border border-slate-700 px-3 py-2 text-slate-200';
+                summary.textContent = '⋮';
+                summary.setAttribute('aria-label', 'Ações');
+                const panel = document.createElement('div');
+                panel.className = 'absolute right-0 z-20 mt-1 min-w-32 rounded-lg border border-slate-600 bg-slate-800 p-1 shadow-xl';
+                const edit = document.createElement('button');
+                edit.type = 'button'; edit.className = 'block w-full rounded px-3 py-2 text-left text-xs text-sky-300';
+                edit.textContent = investmentRecordLabel('edit');
+                edit.addEventListener('click', () => editInvestmentEntry(r.id));
+                const del = document.createElement('button');
+                del.type = 'button'; del.className = 'block w-full rounded px-3 py-2 text-left text-xs text-rose-300';
+                del.textContent = investmentRecordLabel('del');
+                del.addEventListener('click', () => deleteInvestmentEntry(r.id));
+                panel.append(edit, del); menu.append(summary, panel); row.append(details, menu); list.appendChild(row);
             });
         }
 
@@ -4501,14 +4515,17 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 if(!validInvestmentMonth(month)||raw.trim()===''||!Number.isFinite(amount)||amount<0){
                     showToast(investmentRecordLabel('invalid'));return;
                 }
-                const old=editingInvestmentMonth;
-                const previous=state.monthlyInvestments || {};
-                if(old!==null && !Object.prototype.hasOwnProperty.call(previous,old)){
-                    showToast(investmentRecordLabel('missing'));cancelInvestmentEdit();return;
+                ensureInvestmentEntries();
+                const old = editingInvestmentId;
+                if (old !== null) {
+                    const entry = state.investmentEntries.find(e => String(e.id) === String(old));
+                    if (!entry) { showToast(investmentRecordLabel('missing')); cancelInvestmentEdit(); return; }
+                    entry.month = month;
+                    entry.amount = Math.round(amount * 100) / 100;
+                } else {
+                    state.investmentEntries.push({id: 'aporte-' + Date.now() + '-' + Math.random().toString(36).slice(2,8), month, amount: Math.round(amount * 100) / 100});
                 }
-                if(Object.prototype.hasOwnProperty.call(previous,month) && month!==old){
-                }
-                state.monthlyInvestments=changeMonthlyInvestment(previous,old,month,amount);
+                syncInvestmentMonthlyTotals();
                 saveAppData();
                 calculateInvestmentSchedule();
                 renderHistoryAnalysis();
