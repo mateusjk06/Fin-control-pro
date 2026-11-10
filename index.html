@@ -2636,7 +2636,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             d.setMonth(d.getMonth() + count);
             const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
             d.setDate(Math.min(day, last));
-            return d.toISOString().slice(0, 10);
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
         }
 
         function installmentForDebt(debt, index) {
@@ -2691,9 +2691,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const key = dt.toLocaleDateString(({pt:'pt-BR',it:'it-IT',en:'en-US',es:'es-ES'})[activeLanguage] || 'pt-BR', { month: 'short', year: 'numeric' });
                 const billList = Array.isArray(state.bills) ? state.bills : [];
                 // No mês atual, espelha o total da tela inicial; nos meses futuros, considera apenas contas recorrentes/previstas.
-                const bills = i === 0
-                    ? billList.reduce((sum, bill) => sum + billAmountForAnalysis(bill), 0)
-                    : billList.reduce((sum, bill) => sum + (billOccursInMonth(bill, dt) ? billAmountForAnalysis(bill) : 0), 0);
+                const bills = billList.reduce((sum, bill) =>
+                    sum + (billOccursInMonth(bill, dt) ? billAmountForAnalysis(bill) : 0), 0);
                 let debtPay = 0;
                 state.debts.forEach(debt => {
                     // Dívida ativa: a parcela mínima mensal deve entrar no orçamento,
@@ -2927,8 +2926,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         function recalculate() {
-            const totalBills = state.bills.reduce((acc, b) => acc + b.val, 0);
-            const pendingBills = state.bills.filter(b => !b.paid).reduce((acc, b) => acc + b.val, 0);
+            const thisMonth = new Date();
+            const monthlyBills = state.bills.filter(b => billOccursInMonth(b, thisMonth));
+            const totalBills = monthlyBills.reduce((acc, b) => acc + billAmountForAnalysis(b), 0);
+            const pendingBills = monthlyBills.filter(b => !b.paid).reduce((acc, b) => acc + billAmountForAnalysis(b), 0);
             const totalDebtsPay = state.debts.reduce((acc, d) => acc + d.minPayment, 0);
             const totalDebtBalance = state.debts.reduce((acc, d) => acc + d.balance, 0);
             const monthlyInvest = state.investmentConfig.monthly;
