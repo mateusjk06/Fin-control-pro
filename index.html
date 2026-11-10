@@ -666,7 +666,8 @@
                     <h3 class="text-sm font-semibold text-slate-200">Contas a Pagar (Mensais)</h3>
                     <span id="bills-count-badge" class="text-xs text-slate-400">4 contas cadastradas</span>
                 </div>
-                <div class="overflow-x-auto">
+                <div id="unified-payables-list" class="space-y-3 p-3"></div>
+                <div class="hidden overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
                             <tr>
@@ -688,7 +689,7 @@
             <!-- Debts Cards & Strategy Simulator -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Debts List -->
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 lg:col-span-2">
+                <div class="hidden bg-slate-900 border border-slate-800 rounded-xl p-5 lg:col-span-2">
                     <h3 class="text-sm font-semibold text-slate-200 mb-4">Dívidas & Empréstimos Ativos</h3>
                     <div id="debts-list-container" class="space-y-3">
                         <!-- Populated dynamically by JS -->
@@ -2996,6 +2997,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             renderUpcomingBills();
             renderBillsTable();
             renderDebtsList();
+            renderUnifiedPayables();
             renderHistoryAnalysis();
             saveAppData();
             updateBudgetChart(totalBills, totalDebtsPay, monthlyInvest, Math.max(0, freeBalance - monthlyInvest));
@@ -3122,6 +3124,58 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 row.append(left, price);
                 container.appendChild(row);
             });
+        }
+
+        function renderUnifiedPayables() {
+            const target = document.getElementById('unified-payables-list');
+            if (!target) return;
+            target.replaceChildren();
+            const entries = [];
+            const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const dateValue = value => /^\\d{4}-\\d{2}-\\d{2}$/.test(value || '') ? value : '9999-12-31';
+            const dateLabel = value => dateValue(value) === '9999-12-31' ? 'Sem vencimento' : value.split('-').reverse().join('/');
+            state.bills.forEach(b => {
+                const due = dateValue(b.date);
+                const type = b.repeat === 'monthly' || b.recurring || b.isRecurring ? 'Conta fixa' : (Number(b.installments || b.totalInstallments || 0) > 1 ? 'Conta parcelada' : 'Conta única');
+                const installment = Number(b.installmentNumber || b.currentInstallment || 0);
+                const total = Number(b.installments || b.totalInstallments || 0);
+                const card = document.createElement('div');
+                card.className = 'rounded-xl border border-slate-700 bg-slate-950 p-3';
+                card.innerHTML = '<div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="font-semibold text-sm text-white break-words">' + safe(b.desc) + '</div><div class="text-xs text-slate-400 mt-1">' + safe(type) + ' · ' + dateLabel(b.date) + (total > 1 ? ' · Parcela ' + (installment || 1) + '/' + total : '') + '</div><div class="text-sm text-emerald-300 mt-1">' + formatBRL(b.val) + '</div></div><details class="relative shrink-0"><summary class="cursor-pointer list-none rounded-lg border border-slate-700 px-3 py-2 text-slate-200" aria-label="Ações">⋮</summary><div class="absolute right-0 z-20 mt-1 min-w-32 rounded-lg border border-slate-600 bg-slate-800 p-1 shadow-xl"><button type="button" class="bill-edit block w-full rounded px-3 py-2 text-left text-xs hover:bg-slate-700">Editar</button><button type="button" class="bill-delete block w-full rounded px-3 py-2 text-left text-xs text-rose-300 hover:bg-slate-700">Excluir</button></div></details></div><div class="mt-2"><button type="button" class="bill-paid rounded-lg border px-3 py-1 text-xs ' + (b.paid ? 'text-emerald-300 border-emerald-700' : 'text-amber-300 border-amber-700') + '">' + (b.paid ? 'Paga' : 'Pendente') + '</button></div>';
+                card.querySelector('.bill-edit').addEventListener('click', () => editBill(b.id));
+                card.querySelector('.bill-delete').addEventListener('click', () => deleteBill(b.id));
+                card.querySelector('.bill-paid').addEventListener('click', () => toggleBillPaid(b.id));
+                entries.push({due, card});
+            });
+            const debtCards = Array.from(document.querySelectorAll('#debts-list-container > div'));
+            state.debts.forEach((d, i) => {
+                const card = debtCards[i];
+                if (!card) return;
+                const due = dateValue(d.nextDueDate || (Array.isArray(d.schedule) ? d.schedule.find(p => !p.paid)?.date : ''));
+                const pending = typeof debtPendingIndex === 'function' ? debtPendingIndex(d) : -1;
+                const total = Array.isArray(d.schedule) ? d.schedule.length : Number(d.installmentCount || 0);
+                const detail = document.createElement('div');
+                detail.className = 'text-xs text-slate-400 mt-1';
+                detail.textContent = 'Dívida / empréstimo · ' + dateLabel(due) + (total > 0 ? ' · Parcela ' + (pending >= 0 ? pending + 1 : total) + '/' + total : '');
+                card.firstElementChild?.appendChild(detail);
+                const edit = card.querySelector('.debt-edit-action');
+                const remove = card.querySelector('.debt-delete-action');
+                if (edit && remove) {
+                    const menu = document.createElement('details');
+                    menu.className = 'relative';
+                    menu.innerHTML = '<summary class="cursor-pointer list-none rounded-lg border border-slate-700 px-3 py-2 text-slate-200" aria-label="Ações">⋮</summary><div class="absolute right-0 z-20 mt-1 min-w-32 rounded-lg border border-slate-600 bg-slate-800 p-1 shadow-xl"></div>';
+                    const panel = menu.querySelector('div');
+                    edit.className = 'debt-edit-action block w-full rounded px-3 py-2 text-left text-xs text-sky-300';
+                    remove.className = 'debt-delete-action block w-full rounded px-3 py-2 text-left text-xs text-rose-300';
+                    panel.append(edit, remove);
+                    card.querySelector('.flex.flex-wrap.justify-end')?.appendChild(menu);
+                }
+                entries.push({due, card});
+            });
+            entries.sort((a, b) => a.due.localeCompare(b.due));
+            entries.forEach(entry => target.appendChild(entry.card));
+            const badge = document.getElementById('bills-count-badge');
+            if (badge) badge.textContent = entries.length + ' itens cadastrados';
         }
 
         function renderBillsTable() {
