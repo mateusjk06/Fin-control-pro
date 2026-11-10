@@ -2232,6 +2232,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 debts: state.debts,
                 investmentConfig: state.investmentConfig,
                 monthlyInvestments: {...(state.monthlyInvestments || {})},
+                investmentEntries: Array.isArray(state.investmentEntries) ? state.investmentEntries.map(e => ({...e})) : null,
                 monthlyAmortizations: {...(state.monthlyAmortizations || {})},
                 aiPayoffPlan: state.aiPayoffPlan,
                 monthlyAmortizations: state.monthlyAmortizations,
@@ -2299,6 +2300,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             if (saved.monthlyAmortizations && typeof saved.monthlyAmortizations === 'object') state.monthlyAmortizations = saved.monthlyAmortizations;
             state.appliedAmortizations = saved.appliedAmortizations && typeof saved.appliedAmortizations === 'object' ? saved.appliedAmortizations : {};
             if (saved.monthlyInvestments && typeof saved.monthlyInvestments === "object" && !Array.isArray(saved.monthlyInvestments)) state.monthlyInvestments = saved.monthlyInvestments;
+            state.investmentEntries = Array.isArray(saved.investmentEntries) ? saved.investmentEntries.filter(e => e && typeof e === "object" && /^(19|20|21)\\d{2}-(0[1-9]|1[0-2])$/.test(e.month) && Number.isFinite(Number(e.amount))).map(e => ({id: e.id || "restored-" + Math.random().toString(36).slice(2), month:e.month, amount:Number(e.amount)})) : null;
             if (saved.investmentConfig && typeof saved.investmentConfig === 'object') {
                 state.investmentConfig = { ...state.investmentConfig, ...saved.investmentConfig };
             }
@@ -2318,6 +2320,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             state.bills = [];
             state.debts = [];
             state.monthlyInvestments = {};
+            state.investmentEntries = null;
             state.monthlyAmortizations = {};
             state.appliedAmortizations = {};
             state.aiPayoffPlan = null;
@@ -3638,6 +3641,14 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 state.investmentEntries = Object.entries(state.monthlyInvestments || {})
                     .filter(([month, amount]) => validInvestmentMonth(month) && Number.isFinite(Number(amount)))
                     .map(([month, amount], index) => ({id: 'legacy-' + index + '-' + month, month, amount: Number(amount)}));
+            } else {
+                // Recupera meses que só existiam no formato antigo, sem duplicar os já detalhados.
+                Object.entries(state.monthlyInvestments || {}).forEach(([month, amount]) => {
+                    if (!validInvestmentMonth(month) || !Number.isFinite(Number(amount))) return;
+                    const recorded = state.investmentEntries.filter(e => e.month === month).reduce((sum,e) => sum + Number(e.amount), 0);
+                    const difference = Math.round((Number(amount) - recorded) * 100) / 100;
+                    if (difference > 0.009) state.investmentEntries.push({id:'recovered-' + month + '-' + Math.random().toString(36).slice(2), month, amount:difference});
+                });
             }
         }
         function syncInvestmentMonthlyTotals() {
