@@ -661,7 +661,7 @@
             </div>
 
             <!-- Bills Table -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-visible">
                 <div class="px-5 py-4 border-b border-slate-800 flex justify-between items-center">
                     <h3 class="text-sm font-semibold text-slate-200">Contas a Pagar (Mensais)</h3>
                     <span id="bills-count-badge" class="text-xs text-slate-400">4 contas cadastradas</span>
@@ -3196,6 +3196,16 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 entries.push({due, card});
             });
             entries.sort((a, b) => a.due.localeCompare(b.due));
+            // Nos últimos itens, abrir o menu para cima evita cortes na tela do celular.
+            entries.forEach((entry, index) => {
+                const menu = entry.card.querySelector('details');
+                const panel = menu?.querySelector('div.absolute');
+                if (panel && index >= entries.length - 2) {
+                    panel.classList.remove('mt-1');
+                    panel.classList.add('bottom-full', 'mb-1');
+                }
+            });
+
             entries.forEach(entry => target.appendChild(entry.card));
             const badge = document.getElementById('bills-count-badge');
             if (badge) badge.textContent = entries.length + ' itens cadastrados';
