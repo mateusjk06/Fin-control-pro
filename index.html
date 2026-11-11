@@ -2657,8 +2657,47 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
 
         function installmentForDebt(debt, index) {
             return Array.isArray(debt.schedule)
-                ? (debt.schedule[index]?.value || debt.installment || debt.minPayment || 0)
-                : (debt.installment || debt.minPayment || 0);
+                ? (debt.schedule[index]?.value ?? debt.installment ?? debt.minPayment ?? 0)
+                : (debt.installment ?? debt.minPayment ?? 0);
+        }
+
+        // Uma parcela pertence ao mes do vencimento real, nunca a posicao no relatorio.
+        // Mantem parcelas pagas no mes de vencimento para preservar o custo historico.
+        function debtInstallmentsForMonth(debt, monthKey, todayKey) {
+            const schedule = Array.isArray(debt.schedule) ? debt.schedule : [];
+            if (schedule.length) {
+                return schedule.map((payment, index) => {
+                    const pendingIndex = schedule.findIndex(p => !p.paid);
+                    const fallback = debt.startDate
+                        ? addMonths(debt.startDate, index)
+                        : debt.nextDueDate
+                            ? addMonths(debt.nextDueDate, index - (pendingIndex < 0 ? 0 : pendingIndex))
+                            : '';
+                    return {
+                        number: payment.number || index + 1,
+                        dueDate: /^\d{4}-\d{2}-\d{2}$/.test(payment.date || '') ? payment.date : fallback,
+                        amount: Math.max(0, Number(payment.value ?? debt.installment ?? debt.minPayment) || 0),
+                        paid: !!payment.paid
+                    };
+                }).filter(p => p.dueDate.slice(0, 7) === monthKey);
+            }
+            // Compatibilidade com dividas antigas, sem cronograma registrado.
+            const count = Math.max(0, Number(debt.installmentCount) || 0);
+            const paid = Math.max(0, Number(debt.paidCount) || 0);
+            if (Number(debt.balance) <= 0) return [];
+            const firstDue = debt.nextDueDate || (debt.startDate ? addMonths(debt.startDate, paid) : '');
+            const offset = firstDue
+                ? (Number(monthKey.slice(0,4)) - Number(firstDue.slice(0,4))) * 12 +
+                  Number(monthKey.slice(5,7)) - Number(firstDue.slice(5,7))
+                : (Number(monthKey.slice(0,4)) - Number(todayKey.slice(0,4))) * 12 +
+                  Number(monthKey.slice(5,7)) - Number(todayKey.slice(5,7));
+            if (offset < 0 || (count && offset >= count - paid)) return [];
+            return [{
+                number: paid + offset + 1,
+                dueDate: firstDue ? addMonths(firstDue, offset) : monthKey + '-01',
+                amount: Math.max(0, Number(debt.minPayment ?? debt.installment) || 0),
+                paid: false
+            }];
         }
 
         function billOccursInMonth(bill, monthDate) {
@@ -2706,29 +2745,14 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const monthKey = currentInvestmentMonthKey(dt);
                 const key = dt.toLocaleDateString(({pt:'pt-BR',it:'it-IT',en:'en-US',es:'es-ES'})[activeLanguage] || 'pt-BR', { month: 'short', year: 'numeric' });
                 const billList = Array.isArray(state.bills) ? state.bills : [];
-                // No mês atual, espelha o total da tela inicial; nos meses futuros, considera apenas contas recorrentes/previstas.
                 const bills = billList.reduce((sum, bill) =>
-                    sum + (billOccursInMonth(bill, dt) ? billAmountForAnalysis(bill) : 0), 0) + cardInvoiceAmount(monthKey);
-                let debtPay = 0;
-                state.debts.forEach(debt => {
-                    // Dívida ativa: a parcela mínima mensal deve entrar no orçamento,
-                    // mesmo quando a data inicial é antiga ou o cadastro não tem cronograma.
-                    const balance = Math.max(0, Number(debt.balance) || 0);
-                    const paid = Math.max(0, Number(debt.paidCount) || 0);
-                    const count = Math.max(0, Number(debt.installmentCount) || 0);
-                    const remaining = count > 0 ? Math.max(0, count - paid) : Infinity;
-                    if (balance <= 0 || i >= remaining) return;
-                    const scheduled = Math.max(0, Number(installmentForDebt(debt, paid + i)) || 0);
-                    const minimum = Math.max(0, Number(debt.minPayment) || 0);
-                    debtPay += minimum || scheduled;
-                });
-
-                const paidDebtThisMonth = state.debts.reduce((sum, debt) =>
-                    sum + (Array.isArray(debt.schedule) ? debt.schedule.reduce((a, p) =>
-                        a + (p.paid && String(p.paidAt || '').slice(0,7) === monthKey
+                    sum + (billOccursInMonth(bill, dt) ? billAmountForAnalysis(bill) : 0), 0);
+                const monthlyDebtItems = (state.debts || []).flatMap(debt => debtInstallmentsForMonth(debt, monthKey, currentKey));
+                const debtPay = monthlyDebtItems.reduce((sum, payment) => sum + payment.amount, 0) + cardInvoiceAmount(monthKey);
+                const paidDebtThisMonth = (state.debts || []).reduce((sum, debt) =>
+                    sum + (Array.isArray(debt.schedule) ? debt.schedule.reduce((acc, p) =>
+                        acc + (p.paid && String(p.paidAt || '').slice(0, 7) === monthKey
                             ? Math.max(0, Number(p.paidValue ?? p.value) || 0) : 0), 0) : 0), 0);
-                // A confirmed installment remains a real expense even after the debt is fully paid.
-                debtPay = Math.max(debtPay, paidDebtThisMonth);
                 const hasActualInvestment = Object.prototype.hasOwnProperty.call(state.monthlyInvestments || {}, monthKey);
                 const isFuture = dt > new Date(now.getFullYear(), now.getMonth(), 1);
                 const monthlyInvestment = hasActualInvestment
@@ -2772,14 +2796,25 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 (state.bills || []).forEach(b => {
                     if (billOccursInMonth(b, date)) parts.push('<div class="py-2 border-b border-slate-800">' + escapeDetail(b.desc || 'Conta') + ' · ' + escapeDetail(b.repeat === 'once' ? 'Única' : b.repeat === 'limited' ? 'Temporária' : 'Fixa') + ' · ' + formatBRL(billAmountForAnalysis(b)) + '</div>');
                 });
+                (state.creditCards || []).forEach(card => {
+                    cardInvoicesDueInMonth(card, row.monthKey).forEach(invoice => {
+                        parts.push('<div class="py-2 border-b border-slate-800">' +
+                            'Fatura ' + escapeDetail(card.name) + ' · Vencimento ' +
+                            escapeDetail(invoice.dueDate.split('-').reverse().join('/')) +
+                            ' · ' + (invoice.paid ? 'Paga' : 'Pendente') +
+                            ' · ' + formatBRL(invoice.amount) + '</div>');
+                    });
+                });
                 (state.debts || []).forEach(d => {
-                    const offset = (date.getFullYear() - start.getFullYear()) * 12 + date.getMonth() - start.getMonth();
-                    const paid = Math.max(0, Number(d.paidCount) || 0), count = Math.max(0, Number(d.installmentCount) || 0);
-                    if ((Number(d.balance) || 0) <= 0 || offset < 0 || (count && offset >= count - paid)) return;
-                    const idx = paid + offset;
-                    const amount = Math.max(0, Number(d.minPayment) || Number(installmentForDebt(d, idx)) || 0);
-                    const installment = Array.isArray(d.schedule) ? d.schedule[idx] : null;
-                    parts.push('<div class="py-2 border-b border-slate-800">' + escapeDetail(d.desc || 'Dívida') + ' · ' + (count ? 'Parcela ' + (idx+1) + '/' + count : 'Pagamento') + (installment?.date ? ' · ' + escapeDetail(installment.date) : '') + ' · ' + formatBRL(amount) + '</div>');
+                    debtInstallmentsForMonth(d, row.monthKey, currentKey).forEach(payment => {
+                        const total = Number(d.installmentCount) || (Array.isArray(d.schedule) ? d.schedule.length : 0);
+                        parts.push('<div class="py-2 border-b border-slate-800">' +
+                            escapeDetail(d.desc || 'Dívida') +
+                            ' · Parcela ' + payment.number + (total ? '/' + total : '') +
+                            ' · ' + escapeDetail(payment.dueDate) + ' · ' +
+                            (payment.paid ? 'Paga' : 'Pendente') +
+                            ' · ' + formatBRL(payment.amount) + '</div>');
+                    });
                 });
                 return parts.join('') || 'Nenhum lançamento previsto neste mês.';
             };
@@ -2970,8 +3005,11 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         function cardMonthKey(date, closeDay) {
             const d = new Date(date + 'T12:00:00');
             if (Number.isNaN(d.getTime())) return null;
-            const offset = d.getDate() > Number(closeDay) ? 1 : 0;
-            return new Date(d.getFullYear(),d.getMonth()+offset,1).toISOString().slice(0,7);
+            const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+            const effectiveClose = Math.min(Math.max(1, Number(closeDay) || 1), lastDay);
+            const offset = d.getDate() > effectiveClose ? 1 : 0;
+            const closing = new Date(d.getFullYear(), d.getMonth() + offset, 1);
+            return closing.getFullYear() + '-' + String(closing.getMonth() + 1).padStart(2, '0');
         }
         function cardAddMonths(key,n) {
             const [y,m]=key.split('-').map(Number);
@@ -2993,8 +3031,27 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             }
             return totals;
         }
-        function cardInvoiceAmount(key) {
-            return (state.creditCards||[]).reduce((sum,c)=>sum+(cardInvoices(c)[key]||0),0);
+        // As chaves salvas em paidInvoices continuam sendo meses de fechamento.
+        // O vencimento pode ser no mes seguinte; nao migrar essas chaves evita
+        // perder pagamentos que o usuario ja confirmou.
+        function cardInvoiceDueDate(card, closingMonth) {
+            const [year, month] = closingMonth.split('-').map(Number);
+            const offset = Number(card.dueDay) <= Number(card.closeDay) ? 1 : 0;
+            const dueMonth = new Date(year, month - 1 + offset, 1);
+            const lastDay = new Date(dueMonth.getFullYear(), dueMonth.getMonth() + 1, 0).getDate();
+            const day = Math.min(Math.max(1, Number(card.dueDay) || 1), lastDay);
+            return dueMonth.getFullYear() + '-' + String(dueMonth.getMonth() + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        }
+        function cardInvoicesDueInMonth(card, monthKey) {
+            return Object.entries(cardInvoices(card)).map(([invoiceKey, amount]) => ({
+                invoiceKey, amount,
+                dueDate: cardInvoiceDueDate(card, invoiceKey),
+                paid: !!card.paidInvoices?.[invoiceKey]
+            })).filter(invoice => invoice.dueDate.slice(0, 7) === monthKey);
+        }
+        function cardInvoiceAmount(monthKey) {
+            return (state.creditCards || []).reduce((sum, card) =>
+                sum + cardInvoicesDueInMonth(card, monthKey).reduce((value, invoice) => value + invoice.amount, 0), 0);
         }
         function cardEsc(value) {
             return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -3022,7 +3079,8 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     '<details><summary class="cursor-pointer text-blue-300">Compras ('+(card.purchases||[]).length+')</summary><div class="space-y-1 mt-2">'+
                     (card.purchases||[]).map(p=>'<div class="flex justify-between gap-2"><span>'+cardEsc(p.name)+' · '+cardEsc(p.date)+' · '+p.installments+'x · '+formatBRL(p.amount)+'</span><button class="text-rose-400" data-purchase-delete="'+cardEsc(card.id)+':'+cardEsc(p.id)+'">Excluir</button></div>').join('')+'</div></details>'+
                     '<details open><summary class="cursor-pointer text-blue-300">Faturas</summary><div class="space-y-2 mt-2">'+
-                    Object.entries(invoices).sort(([a],[b])=>a.localeCompare(b)).map(([key,amount])=>'<div class="flex justify-between items-center gap-2"><span>'+cardEsc(key)+' · dia '+card.dueDay+' · '+formatBRL(amount)+'</span><button data-invoice="'+cardEsc(card.id)+':'+key+'" class="rounded px-2 py-1 '+(payments[key]?'bg-emerald-800':'bg-slate-700')+'">'+(payments[key]?'Paga ✓':'Marcar paga')+'</button></div>').join('')+'</div></details>';
+                    Object.entries(invoices).sort(([a],[b])=>a.localeCompare(b)).map(([key,amount])=>
+                    '<div class="flex justify-between items-center gap-2"><span>Vence '+cardEsc(cardInvoiceDueDate(card,key).split('-').reverse().join('/'))+' · '+formatBRL(amount)+'</span><button data-invoice="'+cardEsc(card.id)+':'+key+'" class="rounded px-2 py-1 '+(payments[key]?'bg-emerald-800':'bg-slate-700')+'">'+(payments[key]?'Paga ✓':'Marcar paga')+'</button></div>').join('')+'</div></details>';
                 list.append(div);
             }
         }
@@ -3050,6 +3108,12 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const name=document.getElementById('purchase-name').value.trim();
                 const outstanding=Object.entries(cardInvoices(card)).reduce((n,[key,v])=>n+(card.paidInvoices?.[key]?0:v),0);
                 if(!name||!date||amount<=0||installments<1||installments>120||amount>card.limit-outstanding+0.001){alert('Verifique a compra e o limite disponível.');return;}
+                const firstInvoiceKey = cardMonthKey(date, card.closeDay);
+                if(firstInvoiceKey && Array.from({length:installments},(_,i)=>cardAddMonths(firstInvoiceKey,i))
+                    .some(key=>card.paidInvoices?.[key])) {
+                    alert('A compra alteraria uma fatura ja paga. Revise o pagamento antes de registrar a compra.');
+                    return;
+                }
                 card.purchases.push({id:'buy-'+Date.now(),name,amount,installments,date});
                 e.target.reset();document.getElementById('purchase-date').value=new Date().toLocaleDateString('en-CA');recalculate();
             });
@@ -3101,10 +3165,16 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         function recalculate() {
             const thisMonth = new Date();
             const monthlyBills = state.bills.filter(b => billOccursInMonth(b, thisMonth));
-            const totalBills = monthlyBills.reduce((acc, b) => acc + billAmountForAnalysis(b), 0) + cardInvoiceAmount(currentInvestmentMonthKey());
-            const pendingBills = monthlyBills.filter(b => !b.paid).reduce((acc, b) => acc + billAmountForAnalysis(b), 0) + (state.creditCards||[]).reduce((n,c)=>n+(c.paidInvoices?.[currentInvestmentMonthKey()]?0:(cardInvoices(c)[currentInvestmentMonthKey()]||0)),0);
-            const totalDebtsPay = state.debts.reduce((acc, d) => acc + d.minPayment, 0);
-            const totalDebtBalance = state.debts.reduce((acc, d) => acc + d.balance, 0);
+            const totalBills = monthlyBills.reduce((acc, b) => acc + billAmountForAnalysis(b), 0);
+            const pendingBills = monthlyBills.filter(b => !b.paid).reduce((acc, b) => acc + billAmountForAnalysis(b), 0);
+            const dashboardMonth = currentInvestmentMonthKey();
+            const totalDebtsPay = (state.debts || []).reduce((sum, debt) =>
+                sum + debtInstallmentsForMonth(debt, dashboardMonth, dashboardMonth)
+                    .reduce((value, payment) => value + payment.amount, 0), 0) + cardInvoiceAmount(dashboardMonth);
+            const totalDebtBalance = (state.debts || []).reduce((acc, d) => acc + Math.max(0, Number(d.balance) || 0), 0) +
+                (state.creditCards || []).reduce((sum, card) =>
+                    sum + Object.entries(cardInvoices(card)).reduce((v, [key, amount]) =>
+                        v + (card.paidInvoices?.[key] ? 0 : amount), 0), 0);
             const monthKeyForDashboard = currentInvestmentMonthKey();
             const entriesForDashboard = Array.isArray(state.investmentEntries)
                 ? state.investmentEntries.filter(e => e && e.month === monthKeyForDashboard)
@@ -3328,6 +3398,57 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 }
                 entries.push({due, card, kind:'debt', item:d});
             });
+            // Uma fatura unica por cartao/mes, sem criar dividas duplicadas nos dados salvos.
+            // Exibe vencidas pendentes, a fatura deste mes e a proxima futura pendente.
+            const now = currentInvestmentMonthKey();
+            (state.creditCards || []).forEach(creditCard => {
+                const all = Object.entries(cardInvoices(creditCard))
+                    .map(([invoiceKey, amount]) => ({
+                        invoiceKey, amount,
+                        due: cardInvoiceDueDate(creditCard, invoiceKey),
+                        paid: !!creditCard.paidInvoices?.[invoiceKey]
+                    }))
+                    .sort((a,b) => a.due.localeCompare(b.due));
+                const current = all.filter(invoice =>
+                    invoice.due.slice(0, 7) === now || (!invoice.paid && invoice.due.slice(0, 7) < now));
+                const future = all.find(invoice => !invoice.paid && invoice.due.slice(0,7) > now);
+                const shown = current.length ? current : (future ? [future] : []);
+                shown.forEach(invoice => {
+                    const card = document.createElement('div');
+                    card.className = 'rounded-xl border border-blue-800/60 bg-slate-950 p-3';
+                    const name = document.createElement('div');
+                    name.className = 'font-semibold text-sm text-white';
+                    name.textContent = 'Fatura ' + creditCard.name;
+                    const details = document.createElement('p');
+                    details.className = 'text-xs text-slate-400 mt-1';
+                    details.textContent = 'Vencimento ' + invoice.due.split('-').reverse().join('/') +
+                        ' · compras detalhadas em Meus Cartoes';
+                    const payment = document.createElement('button');
+                    payment.type = 'button';
+                    payment.className = 'mt-2 rounded-lg border border-blue-700 px-3 py-2 text-xs ' +
+                        (invoice.paid ? 'text-emerald-300' : 'text-blue-300');
+                    payment.textContent = invoice.paid ? 'Fatura paga ✓ · Desfazer' : 'Marcar fatura mensal como paga';
+                    payment.addEventListener('click', () => {
+                        creditCard.paidInvoices ||= {};
+                        if (creditCard.paidInvoices[invoice.invoiceKey]) {
+                            if (!confirm('Desfazer o pagamento desta fatura mensal?')) return;
+                            delete creditCard.paidInvoices[invoice.invoiceKey];
+                        } else {
+                            if (!confirm('Confirmar o pagamento de ' + formatBRL(invoice.amount) +
+                                ' da fatura de ' + creditCard.name + '?')) return;
+                            creditCard.paidInvoices[invoice.invoiceKey] = true;
+                        }
+                        recalculate();
+                    });
+                    card.append(name, details, payment);
+                    const item = {
+                        desc: 'Fatura ' + creditCard.name,
+                        val: invoice.amount,
+                        paid: invoice.paid
+                    };
+                    entries.push({due:invoice.due, card, kind:'card-invoice', item});
+                });
+            });
             entries.sort((a, b) => a.due.localeCompare(b.due));
             // Nos últimos itens, abrir o menu para cima evita cortes na tela do celular.
             entries.forEach((entry, index) => {
@@ -3355,14 +3476,14 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 name.textContent = item.desc || '';
                 const value = document.createElement('div');
                 value.className = 'text-sm font-medium text-emerald-300 mt-1';
-                value.textContent = formatBRL(kind === 'bill' ? item.val : item.minPayment);
+                value.textContent = formatBRL(kind === 'debt' ? item.minPayment : item.val);
                 const info = document.createElement('div');
                 info.className = 'text-xs text-slate-400 mt-1';
                 const dueText = entry.due === '9999-12-31' ? 'Sem vencimento' : entry.due.split('-').reverse().join('/');
-                info.textContent = (kind === 'bill' ? 'Conta' : 'Dívida / empréstimo') + ' · ' + dueText;
+                info.textContent = (kind === 'bill' ? 'Conta' : kind === 'card-invoice' ? 'Fatura do cartão' : 'Dívida / empréstimo') + ' · ' + dueText;
                 const status = document.createElement('div');
-                status.className = 'text-xs mt-1 ' + (kind === 'bill' && item.paid ? 'text-emerald-300' : 'text-amber-300');
-                status.textContent = kind === 'bill' ? (item.paid ? 'Paga' : 'Pendente') : (debtPendingIndex(item) >= 0 ? 'Parcela pendente' : 'Sem parcela pendente');
+                status.className = 'text-xs mt-1 ' + (kind !== 'debt' && item.paid ? 'text-emerald-300' : 'text-amber-300');
+                status.textContent = kind !== 'debt' ? (item.paid ? 'Paga' : 'Pendente') : (debtPendingIndex(item) >= 0 ? 'Parcela pendente' : 'Sem parcela pendente');
                 summary.append(name, value, info, status);
                 const actions = original.querySelector('details');
                 if (actions) {
