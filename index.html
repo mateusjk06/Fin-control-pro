@@ -2528,6 +2528,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             for (const [name, callback] of [
                 ['tela financeira', () => recalculate()],
                 ['resumo Gemini', () => window.fincontrolRefreshGeminiOverview?.()],
+                ['cota Alex', () => window.fincontrolRefreshAlexQuota?.()],
                 ['análise automática', () => window.fincontrolRunAutoGeminiAnalysis?.()]
             ]) {
                 try { callback(); } catch (error) { console.error('Falha em ' + name + ' após login:', error); }
@@ -4282,11 +4283,33 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 aiPayoffPlan: state.aiPayoffPlan,
                 investmentConfig: state.investmentConfig
             });
+            // Daily quota belongs to the Firebase uid and is checked on the server.
+            const quotaLabel = document.createElement('p');
+            quotaLabel.id = 'alex-daily-quota';
+            quotaLabel.className = 'text-xs text-slate-400 mt-2';
+            quotaLabel.textContent = 'Alex: 10 mensagens por dia por conta.';
+            document.getElementById('gemini-voice-status')?.insertAdjacentElement('afterend',quotaLabel);
+            function showAlexQuota(quota) {
+                if (!quota || typeof quota.remaining !== 'number') return;
+                quotaLabel.textContent = 'Alex: ' + quota.remaining + ' de ' + quota.limit +
+                    ' mensagens restantes hoje (horário de Brasília).';
+            }
+            window.fincontrolRefreshAlexQuota = async () => {
+                if (!firebase.auth().currentUser) return;
+                try {
+                    const status = await firebase.app().functions('us-central1')
+                        .httpsCallable('alexFinancialAssistant')({mode:'status'});
+                    showAlexQuota(status.data);
+                } catch (error) {
+                    quotaLabel.textContent = 'Não foi possível consultar a cota da Alex agora.';
+                }
+            };
             async function getModel() {
                 if (!firebase.auth().currentUser) throw new Error('Faça login para usar a Alex.');
                 const callable = firebase.app().functions('us-central1').httpsCallable('alexFinancialAssistant');
                 return { generateContent: async (prompt) => {
                     const result = await callable({prompt});
+                    showAlexQuota(result?.data?.quota);
                     const answer = result?.data?.text;
                     if (typeof answer !== 'string' || !answer.trim()) throw new Error('A Alex não retornou uma resposta.');
                     return {response:{text:()=>answer}};
@@ -4436,7 +4459,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     addMessage('ai',isGeminiLimitError(error)
                         ? 'A Alex atingiu o limite de solicitações. Nenhum dado foi alterado. Você ainda pode registrar despesas simples como “Gastei 50 reais de combustível hoje”, sem usar a IA.'
                         : 'Não foi possível consultar a Alex: '+String(error?.message||'erro desconhecido').slice(0,180)+'. Nenhum dado foi alterado.');
-                } finally { busy = false; btnSend.disabled = false; }
+                } finally { busy = false; btnSend.disabled = false; window.fincontrolRefreshAlexQuota?.(); }
             }
             // Diagnóstico automático apenas de leitura, uma vez por abertura de sessão.
             // Nenhuma resposta automática é interpretada como comando ou aplicada ao Firestore.
