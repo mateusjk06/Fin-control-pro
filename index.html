@@ -4297,7 +4297,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const data = action.data;
                 const number = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
                 const str = value => typeof value === 'string' && value.trim().length > 0 && value.length <= 150;
-                const validDate = value => typeof value === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
+                const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
                 const existingBill = state.bills.find(b => b.id === Number(action.id));
                 const existingDebt = state.debts.find(d => d.id === Number(action.id));
                 switch (action.type) {
@@ -4326,7 +4326,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                             {type:'save_payoff_plan',data:{debtId:debt.id,monthlyInvestment:data.monthlyInvestment,monthlyExtraPayment:data.monthlyExtraPayment,months:data.months,rationale:data.rationale}} : null;
                     }
                     case 'record_investment':
-                        return typeof data.month === 'string' && /^\\d{4}-(0[1-9]|1[0-2])$/.test(data.month) && number(data.amount) ?
+                        return typeof data.month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(data.month) && number(data.amount) ?
                             {type:'record_investment',data:{month:data.month,amount:data.amount}} : null;
                     default: return null;
                 }
@@ -4918,7 +4918,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 showToast('Relatório do cronograma exportado para CSV com sucesso!');
             });
 
-            document.getElementById('btn-run-debt-sim').addEventListener('click', () => {
+            document.getElementById('btn-run-debt-sim')?.addEventListener('click', () => {
                 renderDebtSimulationForCurrency(true);
                 showToast('Simulação de quitação recalculada!');
             });
