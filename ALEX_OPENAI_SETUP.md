@@ -10,6 +10,16 @@ Esta ramificação prepara a substituição da IA Gemini pela Alex usando a API 
 4. Publique a interface desta ramificação após o backend estar ativo; teste com usuário de teste antes de publicar para todos.
 5. Confirme login, análises mensais, sugestões de edição com confirmação, diagnóstico automático e funcionamento das funções WhatsApp/Alexa existentes.
 
+## Limites de uso (configurados nesta versão)
+
+- Cada conta autenticada tem **10 consultas à Alex por dia**, incluindo diagnóstico automático, se estiver ativado.
+- A cota é compartilhada entre todos os dispositivos da mesma conta e renovada à meia-noite no fuso **America/Sao_Paulo**.
+- O servidor grava somente os contadores em `alexDailyUsage/{dia}/users/{uid}`, usando transações Firestore para impedir que vários dispositivos ultrapassem o limite.
+- Um teto geral de **300 tentativas/dia em todo o app** protege os custos; o valor pode ser ajustado em `functions/alex-assistant.js`.
+- Cada tentativa válida é contabilizada, mesmo se a OpenAI falhar. Consultar o saldo de mensagens não consome cota.
+- Para limitar custos, cada prompt aceita até 16.000 caracteres e cada resposta tem teto de 1.000 tokens. O modelo escolhido é `gpt-5-mini`.
+- Não foi ativada cobrança por usuário, nem criado painel de administrador. A API é cobrada do proprietário da chave; confira os limites de gastos também na plataforma OpenAI.
+
 ## Segurança e operação
 
 - A chamada requer Firebase Auth; a chave OpenAI é armazenada como secret de Firebase Functions.
