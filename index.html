@@ -3011,7 +3011,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const available=Number(card.limit)-outstanding;
                 const div=document.createElement('div');
                 div.className='bg-slate-950 rounded-xl border border-slate-700 p-3 space-y-2 text-sm';
-                div.innerHTML='<div class="flex justify-between gap-2"><strong>'+cardEsc(card.name)+'</strong><button data-card-delete="'+cardEsc(card.id)+'" class="text-rose-400 text-xs">Excluir cartão</button></div>'+
+                div.innerHTML='<div class="flex justify-between items-start gap-2"><strong>'+cardEsc(card.name)+'</strong><details class="relative text-right"><summary aria-label="Opções do cartão" class="cursor-pointer list-none rounded-lg border border-slate-700 px-3 py-1 text-lg leading-5 text-slate-200">⋮</summary><div class="absolute right-0 top-full z-30 mt-1 min-w-36 rounded-lg border border-slate-600 bg-slate-800 p-1 shadow-xl"><button data-card-edit="'+cardEsc(card.id)+'" class="block w-full rounded px-3 py-2 text-left text-sm hover:bg-slate-700">Editar cartão</button><button data-card-delete="'+cardEsc(card.id)+'" class="block w-full rounded px-3 py-2 text-left text-sm text-rose-400 hover:bg-slate-700">Excluir cartão</button></div></details></div>'+
                     '<p>Limite: '+formatBRL(card.limit)+' · Utilizado: '+formatBRL(outstanding)+' · Disponível: <strong>'+formatBRL(available)+'</strong></p>'+
                     '<p class="text-xs text-slate-400">Fecha dia '+card.closeDay+' · Vence dia '+card.dueDay+'</p>'+
                     '<details><summary class="cursor-pointer text-blue-300">Compras ('+(card.purchases||[]).length+')</summary><div class="space-y-1 mt-2">'+
@@ -3048,7 +3048,28 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             });
             document.getElementById('cards-list').addEventListener('click',e=>{
                 const button=e.target.closest('button');if(!button)return;
-                if(button.dataset.cardDelete) {
+                if(button.dataset.cardEdit) {
+                    const card=(state.creditCards||[]).find(c=>c.id===button.dataset.cardEdit);
+                    if(!card)return;
+                    const name=prompt('Nome do cartão:',card.name);
+                    if(name===null)return;
+                    if(!name.trim()){alert('Informe o nome do cartão.');return;}
+                    const rawLimit=prompt('Novo limite total do cartão:',String(card.limit));
+                    if(rawLimit===null)return;
+                    const limit=Number(rawLimit.trim().replace(',','.'));
+                    if(!Number.isFinite(limit)||limit<=0){alert('Informe um limite válido.');return;}
+                    const used=Object.entries(cardInvoices(card)).reduce((n,[key,v])=>n+(card.paidInvoices?.[key]?0:v),0);
+                    if(limit+0.001<used){alert('O limite não pode ser menor que o valor utilizado ('+formatBRL(used)+').');return;}
+                    const rawClose=prompt('Dia de fechamento (1 a 31):',String(card.closeDay));
+                    if(rawClose===null)return;
+                    const close=Number(rawClose);
+                    const rawDue=prompt('Dia de vencimento (1 a 31):',String(card.dueDay));
+                    if(rawDue===null)return;
+                    const due=Number(rawDue);
+                    if(!Number.isInteger(close)||close<1||close>31||!Number.isInteger(due)||due<1||due>31){alert('Os dias devem estar entre 1 e 31.');return;}
+                    if((close!==Number(card.closeDay)||due!==Number(card.dueDay))&&(card.purchases||[]).length&&!confirm('Alterar datas pode redistribuir faturas de compras já registradas. Continuar?'))return;
+                    card.name=name.trim();card.limit=limit;card.closeDay=close;card.dueDay=due;
+                } else if(button.dataset.cardDelete) {
                     const card=(state.creditCards||[]).find(c=>c.id===button.dataset.cardDelete);
                     if(!confirm('Excluir cartão '+card?.name+' e seu histórico?'))return;
                     state.creditCards=state.creditCards.filter(c=>c.id!==button.dataset.cardDelete);
