@@ -2755,7 +2755,9 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const bills = billList.reduce((sum, bill) =>
                     sum + (billOccursInMonth(bill, dt) ? billAmountForAnalysis(bill) : 0), 0);
                 const monthlyDebtItems = (state.debts || []).flatMap(debt => debtInstallmentsForMonth(debt, monthKey, currentKey));
-                const debtPay = monthlyDebtItems.reduce((sum, payment) => sum + payment.amount, 0) + cardInvoiceAmount(monthKey);
+                const debtInstallments = monthlyDebtItems.reduce((sum, payment) => sum + payment.amount, 0);
+                const cardInvoicesTotal = cardInvoiceAmount(monthKey);
+                const debtPay = debtInstallments + cardInvoicesTotal;
                 const paidDebtThisMonth = (state.debts || []).reduce((sum, debt) =>
                     sum + (Array.isArray(debt.schedule) ? debt.schedule.reduce((acc, p) =>
                         acc + (p.paid && String(p.paidAt || '').slice(0, 7) === monthKey
@@ -2777,7 +2779,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 incomeTotal += monthlyIncome.total;
                 expenseTotal += bills + debtPay;
                 investmentTotal += investment;
-                rows.push({ key, monthKey, income: monthlyIncome.total, extraIncome: monthlyIncome.extras, bills, debtPay, paidDebtThisMonth, investment, plannedInvestment, plannedExtra, actualExtra, investmentStatus: hasActualInvestment ? 'Realizado' : (isFuture ? 'Planejado' : 'Sem registro'), net, cumulative });
+                rows.push({ key, monthKey, income: monthlyIncome.total, extraIncome: monthlyIncome.extras, bills, debtPay, debtInstallments, cardInvoicesTotal, paidDebtThisMonth, investment, plannedInvestment, plannedExtra, actualExtra, investmentStatus: hasActualInvestment ? 'Realizado' : (isFuture ? 'Planejado' : 'Sem registro'), net, cumulative });
             }
 
             const actualInvestmentTotal = rows.reduce((sum, row) => sum + Math.max(0, Number((state.monthlyInvestments || {})[row.monthKey]) || 0), 0);
@@ -2806,7 +2808,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 (state.creditCards || []).forEach(card => {
                     cardInvoicesDueInMonth(card, row.monthKey).forEach(invoice => {
                         parts.push('<div class="py-2 border-b border-slate-800">' +
-                            'Fatura ' + escapeDetail(card.name) + ' · Vencimento ' +
+                            '<span class="text-sky-300">Fatura ' + escapeDetail(card.name) + '</span> · Vencimento ' +
                             escapeDetail(invoice.dueDate.split('-').reverse().join('/')) +
                             ' · ' + (invoice.paid ? 'Paga' : 'Pendente') +
                             ' · ' + formatBRL(invoice.amount) + '</div>');
@@ -2827,13 +2829,13 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             };
             table.innerHTML = rows.map(row => '<tr class="text-slate-300"><td class="p-3 font-semibold">' + row.key + '</td>' +
                 '<td class="p-3 text-emerald-400">' + formatBRL(row.income) + (row.extraIncome > 0 ? '<span class="block text-[10px] text-slate-400">+ ' + formatBRL(row.extraIncome) + ' ' + translateUiText('extras',activeLanguage) + '</span>' : '') + '</td>' +
-                '<td class="p-3 text-rose-300"><button type="button" class="history-detail-toggle underline decoration-dotted" aria-expanded="false" data-month="' + row.monthKey + '">⌄ ' + formatBRL(row.bills + row.debtPay) + '</button><span class="block text-[10px] text-slate-400">Contas: ' + formatBRL(row.bills) + ' · Parcelas: ' + formatBRL(row.debtPay) + '</span></td>' +
+                '<td class="p-3 text-rose-300"><button type="button" class="history-detail-toggle underline decoration-dotted" aria-expanded="false" data-month="' + row.monthKey + '">⌄ ' + formatBRL(row.bills + row.debtPay) + '</button><span class="block text-[10px] text-slate-400">Contas: ' + formatBRL(row.bills) + ' · Parcelas de dívidas: ' + formatBRL(row.debtInstallments) + '</span><span class="block text-[10px] text-sky-300">Faturas dos cartões: ' + formatBRL(row.cardInvoicesTotal) + '</span></td>' +
                 '<td class="p-3 text-violet-300">' + formatBRL(row.investment) + '<span class="block text-[10px] text-slate-500">' + row.investmentStatus + '</span></td>' +
                 '<td class="p-3 text-violet-400">' + formatBRL(row.plannedInvestment) + '</td>' +
                 '<td class="p-3 text-orange-300">' + formatBRL(row.actualExtra) + '</td>' +
                 '<td class="p-3 text-amber-400">' + formatBRL(row.plannedExtra) + '</td>' +
                 '<td class="p-3 font-semibold ' + (row.net < 0 ? 'text-rose-400' : 'text-cyan-300') + '">' + formatBRL(row.net) + '</td>' +
-                '<td class="p-3">' + formatBRL(row.cumulative) + '</td></tr><tr class="hidden history-detail-row bg-slate-950/70" data-month="' + row.monthKey + '"><td colspan="9" class="p-4 text-xs text-slate-200"><strong class="text-emerald-300">Contas e parcelas · ' + escapeDetail(row.key) + '</strong>' + detailForMonth(row) + '</td></tr>').join('');
+                '<td class="p-3">' + formatBRL(row.cumulative) + '</td></tr><tr class="hidden history-detail-row bg-slate-950/70" data-month="' + row.monthKey + '"><td colspan="9" class="p-4 text-xs text-slate-200"><strong class="text-emerald-300">Contas, parcelas e faturas · ' + escapeDetail(row.key) + '</strong>' + detailForMonth(row) + '</td></tr>').join('');
             table.querySelectorAll('.history-detail-toggle').forEach(button => button.addEventListener('click', () => {
                 const detail = Array.from(table.querySelectorAll('.history-detail-row')).find(el => el.dataset.month === button.dataset.month);
                 if (!detail) return;
