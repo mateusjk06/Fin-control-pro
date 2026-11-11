@@ -2677,9 +2677,16 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                         number: payment.number || index + 1,
                         dueDate: /^\d{4}-\d{2}-\d{2}$/.test(payment.date || '') ? payment.date : fallback,
                         amount: Math.max(0, Number(payment.value ?? debt.installment ?? debt.minPayment) || 0),
-                        paid: !!payment.paid
+                        paid: !!payment.paid,
+                        hasConfirmedPayment: !!payment.paidAt
                     };
-                }).filter(p => p.dueDate.slice(0, 7) === monthKey);
+                }).filter(p =>
+                    // Parcelas anteriores marcadas como pagas no cadastro nao sao
+                    // novos gastos do mes. Somente pagamentos com data confirmada
+                    // ou parcelas ainda devidas entram no detalhamento.
+                    p.dueDate.slice(0, 7) === monthKey &&
+                    (!p.paid || p.hasConfirmedPayment)
+                );
             }
             // Compatibilidade com dividas antigas, sem cronograma registrado.
             const count = Math.max(0, Number(debt.installmentCount) || 0);
