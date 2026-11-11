@@ -704,8 +704,8 @@
                     <form id="card-create-form" class="grid grid-cols-2 md:grid-cols-5 gap-2">
                         <input required id="card-name" maxlength="60" placeholder="Nome do cartão" class="col-span-2 md:col-span-1 bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm">
                         <input required id="card-limit" type="number" min="0.01" step="0.01" placeholder="Limite total" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm">
-                        <label class="text-xs text-slate-400">Fechamento <input required id="card-close" type="number" min="1" max="28" value="5" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm"></label>
-                        <label class="text-xs text-slate-400">Vencimento <input required id="card-due" type="number" min="1" max="28" value="15" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm"></label>
+                        <label class="text-xs text-slate-400">Fechamento <input required id="card-close" type="number" min="1" max="31" value="5" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm"></label>
+                        <label class="text-xs text-slate-400">Vencimento <input required id="card-due" type="number" min="1" max="31" value="15" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm"></label>
                         <button class="bg-emerald-600 rounded-lg p-2 text-sm font-semibold">Cadastrar cartão</button>
                     </form>
                     <div id="cards-list" class="space-y-3"></div>
@@ -3029,7 +3029,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const limit=Number(document.getElementById('card-limit').value);
                 const closeDay=Number(document.getElementById('card-close').value);
                 const dueDay=Number(document.getElementById('card-due').value);
-                if(!name||limit<=0||closeDay<1||closeDay>28||dueDay<1||dueDay>28)return;
+                if(!name||limit<=0||closeDay<1||closeDay>31||dueDay<1||dueDay>31)return;
                 (state.creditCards ||= []).push({id:'card-'+Date.now(),name,limit,closeDay,dueDay,purchases:[],paidInvoices:{}});
                 e.target.reset();recalculate();
             });
