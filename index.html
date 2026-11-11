@@ -697,35 +697,26 @@
                 </div>
 
                 <div id="ai-payoff-summary" class="hidden bg-slate-900 border border-emerald-700/50 rounded-xl p-5 text-sm text-slate-200" aria-live="polite"></div>
-                <!-- Snowball vs Avalanche Simulator -->
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
-                    <div>
-                        <h3 class="text-sm font-semibold text-slate-200 mb-2">Estratégia de Quitação Acelerada</h3>
-                        <p class="text-xs text-slate-400 mb-4">Simule o tempo total para quitar todas as dívidas injetando um valor extra mensal.</p>
-
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-xs font-medium text-slate-300 mb-1">Aporte Extra Mensal (R$)</label>
-                                <input id="sim-extra-pay" type="number" value="300" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-slate-300 mb-1">Estratégia</label>
-                                <select id="sim-strategy" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
-                                    <option value="avalanche">Método Avalanche (Maior Juros Primeiro)</option>
-                                    <option value="snowball">Método Bola de Neve (Menor Saldo Primeiro)</option>
-                                </select>
-                            </div>
-                            <button id="btn-run-debt-sim" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-2 rounded-lg transition">
-                                Calcular Tempo de Quitação
-                            </button>
-                        </div>
-
-                        <!-- Results Box -->
-                        <div id="debt-sim-result" class="mt-4 p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs space-y-1">
-                            <p class="text-slate-400">Tempo total estimado: <span class="text-emerald-400 font-bold">14 meses</span></p>
-                            <p class="text-slate-400">Economia estimada em juros: <span class="text-cyan-400 font-bold">—</span></p>
-                        </div>
-                    </div>
+                <!-- Controle manual de cartões: não acessa bancos -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 lg:col-span-3 space-y-4" id="credit-cards-section">
+                    <h3 class="text-lg font-semibold text-white">Meus Cartões</h3>
+                    <p class="text-xs text-slate-400">Controle manual, sem conexão bancária. Registre cada compra uma vez; as parcelas serão distribuídas automaticamente.</p>
+                    <form id="card-create-form" class="grid grid-cols-2 md:grid-cols-5 gap-2">
+                        <input required id="card-name" maxlength="60" placeholder="Nome do cartão" class="col-span-2 md:col-span-1 bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm">
+                        <input required id="card-limit" type="number" min="0.01" step="0.01" placeholder="Limite total" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm">
+                        <label class="text-xs text-slate-400">Fechamento <input required id="card-close" type="number" min="1" max="28" value="5" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm"></label>
+                        <label class="text-xs text-slate-400">Vencimento <input required id="card-due" type="number" min="1" max="28" value="15" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm"></label>
+                        <button class="bg-emerald-600 rounded-lg p-2 text-sm font-semibold">Cadastrar cartão</button>
+                    </form>
+                    <div id="cards-list" class="space-y-3"></div>
+                    <form id="card-purchase-form" class="hidden grid grid-cols-2 md:grid-cols-5 gap-2 border-t border-slate-700 pt-4">
+                        <select required id="purchase-card" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm"></select>
+                        <input required id="purchase-name" maxlength="90" placeholder="O que comprou?" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm">
+                        <input required id="purchase-amount" type="number" min="0.01" step="0.01" placeholder="Valor total" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm">
+                        <input required id="purchase-installments" type="number" min="1" max="120" value="1" placeholder="Parcelas" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm">
+                        <input required id="purchase-date" type="date" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm">
+                        <button class="bg-blue-600 rounded-lg p-2 text-sm font-semibold col-span-2 md:col-span-5">Registrar compra</button>
+                    </form>
                 </div>
             </div>
         </section>
@@ -2243,6 +2234,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 monthlyExtraIncome: JSON.parse(JSON.stringify(state.monthlyExtraIncome || {})),
                 bills: state.bills,
                 debts: state.debts,
+                creditCards: state.creditCards || [],
                 investmentConfig: state.investmentConfig,
                 monthlyInvestments: {...(state.monthlyInvestments || {})},
                 investmentEntries: Array.isArray(state.investmentEntries) ? state.investmentEntries.map(e => ({...e})) : null,
@@ -2309,6 +2301,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             state.monthlyExtraIncome = saved.monthlyExtraIncome && typeof saved.monthlyExtraIncome === 'object' && !Array.isArray(saved.monthlyExtraIncome) ? saved.monthlyExtraIncome : {};
             if (Array.isArray(saved.bills)) state.bills = saved.bills;
             if (Array.isArray(saved.debts)) state.debts = saved.debts;
+            state.creditCards = Array.isArray(saved.creditCards) ? saved.creditCards : [];
             if (saved.aiPayoffPlan && typeof saved.aiPayoffPlan === 'object') state.aiPayoffPlan = saved.aiPayoffPlan;
             if (saved.monthlyAmortizations && typeof saved.monthlyAmortizations === 'object') state.monthlyAmortizations = saved.monthlyAmortizations;
             state.appliedAmortizations = saved.appliedAmortizations && typeof saved.appliedAmortizations === 'object' ? saved.appliedAmortizations : {};
@@ -2332,6 +2325,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             state.monthlyExtraIncome = {};
             state.bills = [];
             state.debts = [];
+            state.creditCards = [];
             state.monthlyInvestments = {};
             state.investmentEntries = null;
             state.monthlyAmortizations = {};
@@ -2709,7 +2703,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const billList = Array.isArray(state.bills) ? state.bills : [];
                 // No mês atual, espelha o total da tela inicial; nos meses futuros, considera apenas contas recorrentes/previstas.
                 const bills = billList.reduce((sum, bill) =>
-                    sum + (billOccursInMonth(bill, dt) ? billAmountForAnalysis(bill) : 0), 0);
+                    sum + (billOccursInMonth(bill, dt) ? billAmountForAnalysis(bill) : 0), 0) + cardInvoiceAmount(monthKey);
                 let debtPay = 0;
                 state.debts.forEach(debt => {
                     // Dívida ativa: a parcela mínima mensal deve entrar no orçamento,
@@ -2966,11 +2960,121 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             });
         }
 
+
+        // Manual credit-card ledger. Only monthly invoice amounts enter the budget.
+        function cardMonthKey(date, closeDay) {
+            const d = new Date(date + 'T12:00:00');
+            if (Number.isNaN(d.getTime())) return null;
+            const offset = d.getDate() > Number(closeDay) ? 1 : 0;
+            return new Date(d.getFullYear(),d.getMonth()+offset,1).toISOString().slice(0,7);
+        }
+        function cardAddMonths(key,n) {
+            const [y,m]=key.split('-').map(Number);
+            const d=new Date(y,m-1+n,1);
+            return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+        }
+        function cardInvoices(card) {
+            const totals={};
+            for(const p of card.purchases||[]) {
+                const start=cardMonthKey(p.date,card.closeDay);
+                if(!start)continue;
+                const count=Math.max(1,Math.min(120,Number(p.installments)||1));
+                const cents=Math.round(Number(p.amount)*100);
+                for(let i=0;i<count;i++) {
+                    const amount=(Math.floor(cents/count)+(i<cents%count?1:0))/100;
+                    const key=cardAddMonths(start,i);
+                    totals[key]=(totals[key]||0)+amount;
+                }
+            }
+            return totals;
+        }
+        function cardInvoiceAmount(key) {
+            return (state.creditCards||[]).reduce((sum,c)=>sum+(cardInvoices(c)[key]||0),0);
+        }
+        function cardEsc(value) {
+            return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        }
+        function renderCreditCards() {
+            const list=document.getElementById('cards-list');
+            const select=document.getElementById('purchase-card');
+            if(!list||!select)return;
+            const cards=state.creditCards||[];
+            const today=new Date();
+            const month=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+            list.innerHTML=cards.length?'':'<p class="text-sm text-slate-400">Nenhum cartão cadastrado.</p>';
+            select.innerHTML=cards.map(c=>'<option value="'+cardEsc(c.id)+'">'+cardEsc(c.name)+'</option>').join('');
+            document.getElementById('card-purchase-form').classList.toggle('hidden',!cards.length);
+            for(const card of cards) {
+                const invoices=cardInvoices(card);
+                const payments=card.paidInvoices||{};
+                const outstanding=Object.entries(invoices).reduce((n,[key,v])=>n+(payments[key]?0:v),0);
+                const available=Number(card.limit)-outstanding;
+                const div=document.createElement('div');
+                div.className='bg-slate-950 rounded-xl border border-slate-700 p-3 space-y-2 text-sm';
+                div.innerHTML='<div class="flex justify-between gap-2"><strong>'+cardEsc(card.name)+'</strong><button data-card-delete="'+cardEsc(card.id)+'" class="text-rose-400 text-xs">Excluir cartão</button></div>'+
+                    '<p>Limite: '+formatBRL(card.limit)+' · Utilizado: '+formatBRL(outstanding)+' · Disponível: <strong>'+formatBRL(available)+'</strong></p>'+
+                    '<p class="text-xs text-slate-400">Fecha dia '+card.closeDay+' · Vence dia '+card.dueDay+'</p>'+
+                    '<details><summary class="cursor-pointer text-blue-300">Compras ('+(card.purchases||[]).length+')</summary><div class="space-y-1 mt-2">'+
+                    (card.purchases||[]).map(p=>'<div class="flex justify-between gap-2"><span>'+cardEsc(p.name)+' · '+cardEsc(p.date)+' · '+p.installments+'x · '+formatBRL(p.amount)+'</span><button class="text-rose-400" data-purchase-delete="'+cardEsc(card.id)+':'+cardEsc(p.id)+'">Excluir</button></div>').join('')+'</div></details>'+
+                    '<details open><summary class="cursor-pointer text-blue-300">Faturas</summary><div class="space-y-2 mt-2">'+
+                    Object.entries(invoices).sort(([a],[b])=>a.localeCompare(b)).map(([key,amount])=>'<div class="flex justify-between items-center gap-2"><span>'+cardEsc(key)+' · dia '+card.dueDay+' · '+formatBRL(amount)+'</span><button data-invoice="'+cardEsc(card.id)+':'+key+'" class="rounded px-2 py-1 '+(payments[key]?'bg-emerald-800':'bg-slate-700')+'">'+(payments[key]?'Paga ✓':'Marcar paga')+'</button></div>').join('')+'</div></details>';
+                list.append(div);
+            }
+        }
+        function initCreditCards() {
+            document.getElementById('purchase-date').value=new Date().toLocaleDateString('en-CA');
+            document.getElementById('card-create-form').addEventListener('submit',e=>{
+                e.preventDefault();
+                const name=document.getElementById('card-name').value.trim();
+                const limit=Number(document.getElementById('card-limit').value);
+                const closeDay=Number(document.getElementById('card-close').value);
+                const dueDay=Number(document.getElementById('card-due').value);
+                if(!name||limit<=0||closeDay<1||closeDay>28||dueDay<1||dueDay>28)return;
+                (state.creditCards ||= []).push({id:'card-'+Date.now(),name,limit,closeDay,dueDay,purchases:[],paidInvoices:{}});
+                e.target.reset();recalculate();
+            });
+            document.getElementById('card-purchase-form').addEventListener('submit',e=>{
+                e.preventDefault();
+                const card=(state.creditCards||[]).find(c=>c.id===document.getElementById('purchase-card').value);
+                if(!card)return;
+                const amount=Number(document.getElementById('purchase-amount').value);
+                const installments=Number(document.getElementById('purchase-installments').value);
+                const date=document.getElementById('purchase-date').value;
+                const name=document.getElementById('purchase-name').value.trim();
+                const outstanding=Object.entries(cardInvoices(card)).reduce((n,[key,v])=>n+(card.paidInvoices?.[key]?0:v),0);
+                if(!name||!date||amount<=0||installments<1||installments>120||amount>card.limit-outstanding+0.001){alert('Verifique a compra e o limite disponível.');return;}
+                card.purchases.push({id:'buy-'+Date.now(),name,amount,installments,date});
+                e.target.reset();document.getElementById('purchase-date').value=new Date().toLocaleDateString('en-CA');recalculate();
+            });
+            document.getElementById('cards-list').addEventListener('click',e=>{
+                const button=e.target.closest('button');if(!button)return;
+                if(button.dataset.cardDelete) {
+                    const card=(state.creditCards||[]).find(c=>c.id===button.dataset.cardDelete);
+                    if(!confirm('Excluir cartão '+card?.name+' e seu histórico?'))return;
+                    state.creditCards=state.creditCards.filter(c=>c.id!==button.dataset.cardDelete);
+                } else if(button.dataset.purchaseDelete) {
+                    const [cid,pid]=button.dataset.purchaseDelete.split(':');
+                    const card=state.creditCards.find(c=>c.id===cid);
+                    if(!card||!confirm('Excluir esta compra e todas as parcelas?'))return;
+                    card.purchases=card.purchases.filter(p=>p.id!==pid);
+                    card.paidInvoices={}; // invoice payments must be reviewed after editing purchases
+                } else if(button.dataset.invoice) {
+                    const [cid,key]=button.dataset.invoice.split(':');
+                    const card=state.creditCards.find(c=>c.id===cid);
+                    if(!card)return;
+                    card.paidInvoices ||= {};
+                    if(card.paidInvoices[key])delete card.paidInvoices[key];else card.paidInvoices[key]=true;
+                } else return;
+                recalculate();
+            });
+            renderCreditCards();
+        }
+
         function recalculate() {
             const thisMonth = new Date();
             const monthlyBills = state.bills.filter(b => billOccursInMonth(b, thisMonth));
-            const totalBills = monthlyBills.reduce((acc, b) => acc + billAmountForAnalysis(b), 0);
-            const pendingBills = monthlyBills.filter(b => !b.paid).reduce((acc, b) => acc + billAmountForAnalysis(b), 0);
+            const totalBills = monthlyBills.reduce((acc, b) => acc + billAmountForAnalysis(b), 0) + cardInvoiceAmount(currentInvestmentMonthKey());
+            const pendingBills = monthlyBills.filter(b => !b.paid).reduce((acc, b) => acc + billAmountForAnalysis(b), 0) + (state.creditCards||[]).reduce((n,c)=>n+(c.paidInvoices?.[currentInvestmentMonthKey()]?0:(cardInvoices(c)[currentInvestmentMonthKey()]||0)),0);
             const totalDebtsPay = state.debts.reduce((acc, d) => acc + d.minPayment, 0);
             const totalDebtBalance = state.debts.reduce((acc, d) => acc + d.balance, 0);
             const monthKeyForDashboard = currentInvestmentMonthKey();
@@ -3021,6 +3125,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             renderBillsTable();
             renderDebtsList();
             renderUnifiedPayables();
+            renderCreditCards();
             renderHistoryAnalysis();
             saveAppData();
             updateBudgetChart(totalBills, totalDebtsPay, monthlyInvest, Math.max(0, freeBalance));
@@ -4699,7 +4804,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 }
             }, error => showAuthError(friendlyAuthError(error)));
             for (const [name, initialize] of [
-                ['abas', initTabs], ['gráficos', initBudgetChart],
+                ['cartões', initCreditCards], ['abas', initTabs], ['gráficos', initBudgetChart],
                 ['investimentos', initInvestChart], ['histórico', initHistoryChart],
                 ['amortização', initAmortizationTracking], ['formulários', initModals],
                 ['Alexa', initAlexaSimulator], ['Gemini', initGeminiSimulator]
