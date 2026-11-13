@@ -81,3 +81,7 @@ exports.sendDueWhatsAppReminders=onSchedule({
 });
 // Alexa OAuth2 and read-only financial summary endpoint.
 exports.alexaOAuth=require('./alexa-oauth').alexaOAuth;
+
+ 
+// Alex (ChatGPT): authenticated server-side callable with per-account quota.
+exports.alexFinancialAssistant=require("./alex-assistant").alexFinancialAssistant;

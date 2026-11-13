@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#080f1c">
-    <title>FinControl Pro + Alexa & Gemini AI</title>
+    <title>FinControl Pro + Alexa & Alex AI</title>
     <link rel="manifest" href="./manifest.webmanifest">
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
@@ -15,6 +15,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
     <script>
         tailwind.config = {
@@ -504,8 +505,8 @@
                     </button>
                     <button data-tab="gemini" class="tab-btn py-3 px-3 text-slate-400 hover:text-slate-200 transition whitespace-nowrap flex items-center space-x-2">
                         <i class="fa-solid fa-star text-purple-400"></i>
-                        <span>Integração Gemini AI</span>
-                        <span class="mobile-tab-label" aria-hidden="true">Gemini</span>
+                        <span>Integração Alex AI</span>
+                        <span class="mobile-tab-label" aria-hidden="true">Alex</span>
                     </button>
                 </nav>
             </div>
@@ -1035,7 +1036,7 @@ exports.handler = Alexa.SkillBuilders.custom()
                 <div>
                     <h2 class="text-xl font-bold text-white flex items-center space-x-2">
                         <i class="fa-solid fa-sparkles text-purple-400"></i>
-                        <span>Integração Inteligente Google Gemini AI</span>
+                        <span>Integração Inteligente Alex (ChatGPT)</span>
                     </h2>
                     <p class="text-xs text-slate-400">Assistente financeiro autônomo, análise contextual de orçamento e código de integração API.</p>
                 </div>
@@ -1058,8 +1059,8 @@ exports.handler = Alexa.SkillBuilders.custom()
                                     <i class="fa-solid fa-brain"></i>
                                 </div>
                                 <div>
-                                    <h3 class="text-sm font-bold text-white">Assistente Financeiro Gemini</h3>
-                                    <p class="text-xs text-purple-400">Modelo: gemini-1.5-flash (Análise Financeira)</p>
+                                    <h3 class="text-sm font-bold text-white">Assistente Financeira Alex</h3>
+                                    <p class="text-xs text-purple-400">Modelo: OpenAI (Análise Financeira)</p>
                                 </div>
                             </div>
                             <button id="btn-generate-ai-report" class="bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5">
@@ -1074,7 +1075,7 @@ exports.handler = Alexa.SkillBuilders.custom()
                             <div class="flex items-start space-x-2">
                                 <div class="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs flex-shrink-0">G</div>
                                 <div class="bg-slate-950 border border-purple-500/20 rounded-xl p-3 text-slate-200 max-w-xl">
-                                    <p class="font-semibold text-purple-300 mb-1">Gemini AI Advisor</p>
+                                    <p class="font-semibold text-purple-300 mb-1">Alex — Assistente Financeira</p>
                                     <p>Olá! Posso ajudar a analisar os dados financeiros cadastrados nesta conta. O que você gostaria de verificar?</p>
                                 </div>
                             </div>
@@ -1083,7 +1084,7 @@ exports.handler = Alexa.SkillBuilders.custom()
 
                     <!-- Input Box -->
                     <div class="mt-4 pt-3 border-t border-slate-800 flex items-center space-x-2">
-                        <input id="gemini-user-input" type="text" placeholder="Pergunte algo ao Gemini (ex: Como quitar minha dívida mais rápido?)" class="flex-grow bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                        <input id="gemini-user-input" type="text" placeholder="Pergunte algo à Alex (ex: Como quitar minha dívida mais rápido?)" class="flex-grow bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
                         <button id="btn-voice-gemini" type="button" aria-label="Ditado por voz para o Gemini" title="Falar comando" class="shrink-0 rounded-lg border border-purple-600 bg-purple-900/50 px-3 py-2 text-purple-200" ><i class="fa-solid fa-microphone"></i></button>
                         <button id="btn-send-gemini" class="bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs px-4 py-2 rounded-lg transition flex items-center space-x-1">
                             <i class="fa-solid fa-paper-plane"></i>
@@ -1095,7 +1096,7 @@ exports.handler = Alexa.SkillBuilders.custom()
 
                 <!-- Sugestoes opcionais, fechadas por padrao. -->
                 <details id="gemini-suggested-prompts" class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                    <summary class="cursor-pointer select-none text-sm font-semibold text-slate-200 hover:text-purple-300">Sugestões de perguntas para o Gemini</summary>
+                    <summary class="cursor-pointer select-none text-sm font-semibold text-slate-200 hover:text-purple-300">Sugestões de perguntas para a Alex</summary>
                     <div class="mt-4">
                         <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
                             <button data-gemini-prompt="anomalia" class="btn-gemini-prompt w-full text-left bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/40 p-2.5 rounded-lg text-xs text-slate-300 transition">
@@ -2527,6 +2528,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             for (const [name, callback] of [
                 ['tela financeira', () => recalculate()],
                 ['resumo Gemini', () => window.fincontrolRefreshGeminiOverview?.()],
+                ['cota Alex', () => window.fincontrolRefreshAlexQuota?.()],
                 ['análise automática', () => window.fincontrolRunAutoGeminiAnalysis?.()]
             ]) {
                 try { callback(); } catch (error) { console.error('Falha em ' + name + ' após login:', error); }
@@ -4248,6 +4250,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         }
 
         function initGeminiSimulator() {
+            document.getElementById('gemini-code-details')?.remove();
             const chatHistory = document.getElementById('gemini-chat-history');
             const userInput = document.getElementById('gemini-user-input');
             const btnSend = document.getElementById('btn-send-gemini');
@@ -4259,7 +4262,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 wrapper.className = 'rounded-xl border border-slate-700 bg-slate-900 p-3 my-2 text-sm text-slate-200 whitespace-pre-wrap';
                 const title = document.createElement('strong');
                 title.className = 'block mb-2 text-purple-300';
-                title.textContent = role === 'user' ? 'Você' : 'Gemini AI Advisor';
+                title.textContent = role === 'user' ? 'Você' : 'Alex — Assistente Financeira';
                 const body = document.createElement('div');
                 body.textContent = String(message);
                 wrapper.append(title, body);
@@ -4280,32 +4283,44 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 aiPayoffPlan: state.aiPayoffPlan,
                 investmentConfig: state.investmentConfig
             });
+            // Daily quota belongs to the Firebase uid and is checked on the server.
+            const quotaLabel = document.createElement('p');
+            quotaLabel.id = 'alex-daily-quota';
+            quotaLabel.className = 'text-xs text-slate-400 mt-2';
+            quotaLabel.textContent = 'Alex: 10 mensagens por dia por conta.';
+            document.getElementById('gemini-voice-status')?.insertAdjacentElement('afterend',quotaLabel);
+            function showAlexQuota(quota) {
+                if (!quota || typeof quota.remaining !== 'number') return;
+                quotaLabel.textContent = 'Alex: ' + quota.remaining + ' de ' + quota.limit +
+                    ' mensagens restantes hoje (horário de Brasília).';
+            }
+            window.fincontrolRefreshAlexQuota = async () => {
+                if (!firebase.auth().currentUser) return;
+                try {
+                    const status = await firebase.app().functions('us-central1')
+                        .httpsCallable('alexFinancialAssistant')({mode:'status'});
+                    showAlexQuota(status.data);
+                } catch (error) {
+                    quotaLabel.textContent = 'Não foi possível consultar a cota da Alex agora.';
+                }
+            };
             async function getModel() {
-                if (!aiModelPromise) aiModelPromise = (async () => {
-                    const sdk = await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js');
-                    const core = await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js');
-                    const modularApp = core.getApps().find(app => app.name === 'fincontrol-gemini') ||
-                        core.initializeApp(FIREBASE_CONFIG, 'fincontrol-gemini');
-                    // App Check precisa ser inicializado na mesma instância Firebase usada pelo AI Logic.
-                    const appCheckSdk = await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-app-check.js');
-                    appCheckSdk.initializeAppCheck(modularApp, {
-                        provider: new appCheckSdk.ReCaptchaEnterpriseProvider('6LcuWBYuAAAAAKippte8P-vHzwL3ebIHDV-K4A6v'),
-                        isTokenAutoRefreshEnabled: true
-                    });
-                    const ai = sdk.getAI(modularApp, { backend: new sdk.GoogleAIBackend() });
-                    return sdk.getGenerativeModel(ai, {
-                        model: 'gemini-3-flash-preview',
-                        systemInstruction: 'Você é um assistente financeiro. Responda sempre no idioma solicitado pelo usuário; use somente os dados fornecidos. Não invente saldos, juros, preços ou rendimentos. Não execute operações. Para solicitar mudanças, responda com JSON puro no formato {"message":"resumo curto","action":{"type":"add_bill|edit_bill|set_bill_paid|add_debt|edit_debt|set_income|record_investment|save_payoff_plan","id":numero opcional,"data":{...}}}. Para consultas, retorne texto normal. Uma única ação por resposta. Para editar contas: desc,cat,val,date,paid; dívidas: desc,balance,ratePct,minPayment; renda: value; investimentos: month (YYYY-MM),amount. Nunca proponha apagar dados ou transferir dinheiro. Se o usuário pedir para aplicar uma estratégia de quitação e investimento no aplicativo, proponha action type save_payoff_plan com data {debtId: número, monthlyInvestment: número >= 0, monthlyExtraPayment: número >= 0, months: inteiro entre 1 e 60, rationale: texto curto}. Use um id de dívida existente. Para save_payoff_plan, os campos monthlyInvestment e monthlyExtraPayment devem ser números JSON, months deve ser inteiro e rationale deve ter no máximo 150 caracteres. A soma das duas metas não pode exceder a renda menos contas e parcelas mínimas informadas. Considere que despesas variáveis não cadastradas reduzem a margem real. Não altere o saldo da dívida, nem registre pagamentos reais; o plano apenas define metas de aporte e amortização futura. Ganhos extras e bônus ocasionais não são renda mensal garantida: não os use como base para metas recorrentes.'
-                    });
-                })().catch(error => { aiModelPromise = null; throw error; });
-                return aiModelPromise;
+                if (!firebase.auth().currentUser) throw new Error('Faça login para usar a Alex.');
+                const callable = firebase.app().functions('us-central1').httpsCallable('alexFinancialAssistant');
+                return { generateContent: async (prompt) => {
+                    const result = await callable({prompt});
+                    showAlexQuota(result?.data?.quota);
+                    const answer = result?.data?.text;
+                    if (typeof answer !== 'string' || !answer.trim()) throw new Error('A Alex não retornou uma resposta.');
+                    return {response:{text:()=>answer}};
+                }};
             }
             function validateAction(action) {
                 if (!action || !action.data || typeof action.data !== 'object') return null;
                 const data = action.data;
                 const number = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
                 const str = value => typeof value === 'string' && value.trim().length > 0 && value.length <= 150;
-                const validDate = value => typeof value === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
+                const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
                 const existingBill = state.bills.find(b => b.id === Number(action.id));
                 const existingDebt = state.debts.find(d => d.id === Number(action.id));
                 switch (action.type) {
@@ -4334,7 +4349,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                             {type:'save_payoff_plan',data:{debtId:debt.id,monthlyInvestment:data.monthlyInvestment,monthlyExtraPayment:data.monthlyExtraPayment,months:data.months,rationale:data.rationale}} : null;
                     }
                     case 'record_investment':
-                        return typeof data.month === 'string' && /^\\d{4}-(0[1-9]|1[0-2])$/.test(data.month) && number(data.amount) ?
+                        return typeof data.month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(data.month) && number(data.amount) ?
                             {type:'record_investment',data:{month:data.month,amount:data.amount}} : null;
                     default: return null;
                 }
@@ -4399,6 +4414,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     if(localAction){
                         const valid=validateAction(localAction);
                         if(valid){
+                            if (!window.confirm('Registrar despesa: ' + valid.data.desc + ' — ' + formatBRL(valid.data.val) + '?')) { status.remove(); addMessage('ai','Registro cancelado.'); return; }
                             applyAction(valid);
                             status.remove();
                             addMessage('ai','Despesa registrada sem usar o Gemini: '+valid.data.desc+' — '+formatBRL(valid.data.val)+'.');
@@ -4429,10 +4445,11 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                             else if (!Number.isInteger(d.months) || d.months<1 || d.months>60) reason = 'O prazo precisa ser um número inteiro entre 1 e 60 meses.';
                             else reason = 'A justificativa está ausente ou excede 150 caracteres.';
                         }
-                        addMessage('ai','Não foi possível aplicar a proposta: ' + reason + '\\nNenhum dado foi alterado. Peça ao Gemini para recalcular dentro desses limites.');
+                        addMessage('ai','Não foi possível aplicar a proposta: ' + reason + '\\nNenhum dado foi alterado. Peça à Alex para recalcular dentro desses limites.');
                         return;
                     }
                     addMessage('ai',(parsed.message || 'Alteração solicitada') + '\\nProposta: ' + JSON.stringify(action));
+                    if (!window.confirm('Confirma aplicar a alteração proposta pela Alex?\n' + JSON.stringify(action, null, 2))) { addMessage('ai','Alteração cancelada.'); return; }
                     applyAction(action);
                     if (action.type === 'save_payoff_plan') addMessage('ai','Plano salvo: aporte mensal de ' + formatBRL(action.data.monthlyInvestment) + ' e meta de amortização extra de ' + formatBRL(action.data.monthlyExtraPayment) + ' por mês durante ' + action.data.months + ' meses. Nenhum pagamento ou aporte foi executado.');
                     else addMessage('ai','Alteração aplicada. Confira os valores na tela.');
@@ -4440,14 +4457,14 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     status.remove();
                     console.error('Gemini AI Logic:',error);
                     addMessage('ai',isGeminiLimitError(error)
-                        ? 'O limite gratuito do Gemini foi atingido hoje. Nenhum dado foi alterado. Você ainda pode registrar despesas simples como “Gastei 50 reais de combustível hoje”, sem usar a IA.'
-                        : 'Não foi possível consultar o Gemini: '+String(error?.message||'erro desconhecido').slice(0,180)+'. Nenhum dado foi alterado.');
-                } finally { busy = false; btnSend.disabled = false; }
+                        ? 'A Alex atingiu o limite de solicitações. Nenhum dado foi alterado. Você ainda pode registrar despesas simples como “Gastei 50 reais de combustível hoje”, sem usar a IA.'
+                        : 'Não foi possível consultar a Alex: '+String(error?.message||'erro desconhecido').slice(0,180)+'. Nenhum dado foi alterado.');
+                } finally { busy = false; btnSend.disabled = false; window.fincontrolRefreshAlexQuota?.(); }
             }
             // Diagnóstico automático apenas de leitura, uma vez por abertura de sessão.
             // Nenhuma resposta automática é interpretada como comando ou aplicada ao Firestore.
             let lastAutomaticUid = null;
-            const autoPrefKey = 'fincontrol_gemini_auto_analysis';
+            const autoPrefKey = 'fincontrol_alex_auto_analysis';
             const autoControls = document.createElement('label');
             autoControls.className = 'flex items-center gap-2 text-xs text-slate-300 mt-3 mb-2';
             const autoCheckbox = document.createElement('input');
@@ -4566,7 +4583,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     status.remove();
                     console.error('Diagnóstico automático Gemini:', error);
                     addMessage('ai',isGeminiLimitError(error)
-                        ? 'Diagnóstico indisponível: a cota gratuita diária do Gemini acabou. O resumo financeiro acima continua disponível.'
+                        ? 'Diagnóstico indisponível: a API da Alex está temporariamente indisponível. O resumo financeiro acima continua disponível.'
                         : 'Não foi possível executar o diagnóstico automático. Seus dados não foram alterados.');
                     if(!isGeminiLimitError(error))lastAutomaticUid = null;
                 }
@@ -4924,7 +4941,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 showToast('Relatório do cronograma exportado para CSV com sucesso!');
             });
 
-            document.getElementById('btn-run-debt-sim').addEventListener('click', () => {
+            document.getElementById('btn-run-debt-sim')?.addEventListener('click', () => {
                 renderDebtSimulationForCurrency(true);
                 showToast('Simulação de quitação recalculada!');
             });
