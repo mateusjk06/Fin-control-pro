@@ -17,7 +17,9 @@ async function main(){
     if(!snap.exists)continue;
     const data=snap.data()||{};
     snapshots.set(user.id,data);
-    for(const token of new Set((Array.isArray(data.pushTokens)?data.pushTokens:[]).filter(x=>typeof x==="string"&&x.length>20))){
+    // Old unverified registrations cannot claim ownership of another account's device.
+    const verified=new Set(Array.isArray(data.pushVerifiedTokens)?data.pushVerifiedTokens:[]);
+    for(const token of new Set((Array.isArray(data.pushTokens)?data.pushTokens:[]).filter(x=>typeof x==="string"&&x.length>20&&verified.has(x)))){
       if(!owners.has(token))owners.set(token,new Set());
       owners.get(token).add(user.id);
     }
