@@ -1,5 +1,8 @@
 name: FinControl - notificacoes push gratuitas
 on:
+  schedule:
+    - cron: '13 9 * * *'
+      timezone: 'America/Sao_Paulo'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -33,6 +36,6 @@ jobs:
         working-directory: functions
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-          PUSH_DRY_RUN: 'true'
+          PUSH_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
           PUSH_TEST_LATEST_DEVICE: 'false'
         run: node reminders-push.js
