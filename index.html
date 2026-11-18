@@ -1989,8 +1989,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     const saved=snap.data()||{};
                     const tokens=Array.isArray(saved.pushTokens)?saved.pushTokens:[];
                     const unique=[...new Set([...tokens,token])].slice(-10);
-                    tx.update(doc,{pushTokens:unique,'contactPreferences.pushOptIn':true});
+                    const verified=[...new Set([...(Array.isArray(saved.pushVerifiedTokens)?saved.pushVerifiedTokens:[]),token])].filter(t=>unique.includes(t));
+                    tx.update(doc,{pushTokens:unique,pushVerifiedTokens:verified,'contactPreferences.pushOptIn':true});
                     state.pushTokens=unique;
+                    state.pushVerifiedTokens=verified;
                     state.contactPreferences={...(state.contactPreferences||{}),pushOptIn:true};
                 });
                 try {localStorage.setItem(userStorageKey(uid),JSON.stringify(getAppData()));}catch(e){}
@@ -2017,8 +2019,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                     if(!snap.exists)return;
                     const previous=Array.isArray(snap.data().pushTokens)?snap.data().pushTokens:[];
                     const updated=previous.filter(t=>t!==token);
-                    tx.update(doc,{pushTokens:updated,...(updated.length?{}:{'contactPreferences.pushOptIn':false})});
+                    const verified=(Array.isArray(snap.data().pushVerifiedTokens)?snap.data().pushVerifiedTokens:[]).filter(t=>t!==token);
+                    tx.update(doc,{pushTokens:updated,pushVerifiedTokens:verified,...(updated.length?{}:{'contactPreferences.pushOptIn':false})});
                     state.pushTokens=updated;
+                    state.pushVerifiedTokens=verified;
                     if(!updated.length)state.contactPreferences={...state.contactPreferences,pushOptIn:false};
                 });
                 if(token)await firebase.messaging().deleteToken().catch(()=>{});
@@ -2235,6 +2239,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 income: state.income,
                 contactPreferences: {...(state.contactPreferences || {})},
                 pushTokens: Array.isArray(state.pushTokens) ? state.pushTokens : [],
+                pushVerifiedTokens: Array.isArray(state.pushVerifiedTokens) ? state.pushVerifiedTokens : [],
                 monthlyIncomeOverrides: {...(state.monthlyIncomeOverrides || {})},
                 monthlyExtraIncome: JSON.parse(JSON.stringify(state.monthlyExtraIncome || {})),
                 bills: state.bills,
@@ -2300,6 +2305,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             if (!saved || typeof saved !== 'object') return;
             state.currency = CURRENCIES.includes(saved.currency) ? saved.currency : 'BRL';
             state.pushTokens = Array.isArray(saved.pushTokens) ? saved.pushTokens : [];
+            state.pushVerifiedTokens = Array.isArray(saved.pushVerifiedTokens) ? saved.pushVerifiedTokens : [];
             state.contactPreferences = saved.contactPreferences && typeof saved.contactPreferences === 'object' ? {reminders:saved.contactPreferences.reminders !== false,pushOptIn:saved.contactPreferences.pushOptIn===true} : {reminders:true,pushOptIn:false};
             if (Number.isFinite(saved.income)) state.income = saved.income;
             state.monthlyIncomeOverrides = saved.monthlyIncomeOverrides && typeof saved.monthlyIncomeOverrides === 'object' && !Array.isArray(saved.monthlyIncomeOverrides) ? saved.monthlyIncomeOverrides : {};
@@ -2324,6 +2330,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
         function resetStateForNewUser() {
             state.currency = 'BRL';
             state.pushTokens = [];
+            state.pushVerifiedTokens = [];
             state.contactPreferences = {reminders:true,pushOptIn:false};
             state.income = 0;
             state.monthlyIncomeOverrides = {};
