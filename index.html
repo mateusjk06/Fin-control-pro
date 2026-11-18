@@ -4397,10 +4397,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const monthlyBills = state.bills.filter(b => String(b.date || '').slice(0, 7) === month);
                 const bills = monthlyBills.reduce((sum,b) => sum + (Number(b.val) || 0), 0);
                 const balance = income - bills;
-                return 'Resumo local (sem usar a API Gemini) para ' + month + ':\\n' +
-                    'Receitas cadastradas: ' + formatBRL(income) + '.\\n' +
-                    'Contas com data neste mês: ' + formatBRL(bills) + ' (' + monthlyBills.length + ' lançamentos).\\n' +
-                    'Diferença estimada: ' + formatBRL(balance) + '.\\n' +
+                return 'Resumo local (sem usar a API Gemini) para ' + month + ':\n' +
+                    'Receitas cadastradas: ' + formatBRL(income) + '.\n' +
+                    'Contas com data neste mês: ' + formatBRL(bills) + ' (' + monthlyBills.length + ' lançamentos).\n' +
+                    'Diferença estimada: ' + formatBRL(balance) + '.\n' +
                     'Isso não é seu saldo bancário. Parcelas, cartão, investimentos e gastos não lançados podem não estar incluídos; confira a Análise mensal para o total consolidado.';
             }
             function geminiErrorMessage(error) {
