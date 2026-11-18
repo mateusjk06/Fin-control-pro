@@ -10,17 +10,36 @@ async function main(){
   const db=admin.firestore(),today=brazilDay();
   const users=await db.collection("users").listDocuments();
   const dry=process.env.PUSH_DRY_RUN==="true";
+  // Legacy token registrations are untrusted until the owner enables push again.
+  const snapshots=new Map(),owners=new Map();
+  for(const user of users){
+    const snap=await user.collection("appData").doc("main").get();
+    if(!snap.exists)continue;
+    const data=snap.data()||{};
+    snapshots.set(user.id,data);
+    for(const token of new Set((Array.isArray(data.pushTokens)?data.pushTokens:[]).filter(x=>typeof x==="string"&&x.length>20))){
+      if(!owners.has(token))owners.set(token,new Set());
+      owners.get(token).add(user.id);
+    }
+  }
+  const safeTokens=(uid,data)=>[...new Set(
+    (Array.isArray(data.pushTokens)?data.pushTokens:[]).filter(x=>typeof x==="string"&&x.length>20)
+  )].filter(token=>
+    (Array.isArray(data.pushVerifiedTokens)?data.pushVerifiedTokens:[]).includes(token) &&
+    owners.get(token)?.size===1 && owners.get(token)?.has(uid)
+  ).slice(0,10);
+  const conflicts=[...owners.values()].filter(ids=>ids.size>1).length;
+  console.log("Proteção push: "+conflicts+" token(s) compartilhado(s) bloqueado(s).");
   let eligible=0,accepted=0,errors=0;
   // Manual targeted test: only the newest device of exactly one eligible account.
   // Never touches daily notification logs or sends to multiple users.
   if(process.env.PUSH_TEST_LATEST_DEVICE==="true"){
     const candidates=[];
     for(const user of users){
-      const snap=await user.collection("appData").doc("main").get();
-      if(!snap.exists)continue;
-      const data=snap.data()||{};
+      const data=snapshots.get(user.id);
+      if(!data)continue;
       if(data.contactPreferences?.reminders===false||data.contactPreferences?.pushOptIn!==true)continue;
-      const tokens=[...new Set((Array.isArray(data.pushTokens)?data.pushTokens:[]).filter(x=>typeof x==="string"&&x.length>20))];
+      const tokens=safeTokens(user.id,data);
       if(tokens.length<2)continue;
       if(!entriesDue(data,today).length)continue;
       candidates.push({token:tokens[tokens.length-1]});
@@ -37,11 +56,10 @@ async function main(){
   }
   for(const user of users){
     const ref=user.collection("appData").doc("main");
-    const snap=await ref.get();
-    if(!snap.exists)continue;
-    const data=snap.data()||{};
+    const data=snapshots.get(user.id);
+    if(!data)continue;
     if(data.contactPreferences?.reminders===false||data.contactPreferences?.pushOptIn!==true)continue;
-    const tokens=[...new Set((Array.isArray(data.pushTokens)?data.pushTokens:[]).filter(x=>typeof x==="string"&&x.length>20))].slice(0,10);
+    const tokens=safeTokens(user.id,data);
     if(!tokens.length)continue;
     const due=entriesDue(data,today);
     if(!due.length)continue;
@@ -69,7 +87,10 @@ async function main(){
       });
       if(invalid.length){
         // Update only the array field to avoid clobbering financial records.
-        await ref.update({pushTokens:admin.firestore.FieldValue.arrayRemove(...invalid)});
+        await ref.update({
+          pushTokens:admin.firestore.FieldValue.arrayRemove(...invalid),
+          pushVerifiedTokens:admin.firestore.FieldValue.arrayRemove(...invalid)
+        });
       }
       if(!response.successCount)throw Error("Nenhum dispositivo aceitou a notificação.");
       await log.set({status:"sent",accepted:response.successCount,failed:response.failureCount,completedAt:admin.firestore.FieldValue.serverTimestamp()},{merge:true});
