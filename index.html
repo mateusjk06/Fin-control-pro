@@ -4387,6 +4387,32 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             function isGeminiLimitError(error) {
                 return /(?:429|quota exceeded|exceeded your current quota|RESOURCE_EXHAUSTED|free.tier.requests)/i.test(String(error?.message||error||''));
             }
+            // Local read-only answer for simple monthly balance questions: no AI quota needed.
+            function localMonthlyBalanceAnswer(question) {
+                const q = String(question || '').toLocaleLowerCase('pt-BR');
+                if (!/(saldo|quanto (?:tenho|sobra|sobrou)|dispon[ií]vel)/i.test(q) ||
+                    !/(m[eê]s|mensal|renda|contas|despesas)/i.test(q)) return null;
+                const month = currentInvestmentMonthKey();
+                const income = Number(monthlyIncomeParts(month).total) || 0;
+                const monthlyBills = state.bills.filter(b => String(b.date || '').slice(0, 7) === month);
+                const bills = monthlyBills.reduce((sum,b) => sum + (Number(b.val) || 0), 0);
+                const balance = income - bills;
+                return 'Resumo local (sem usar a API Gemini) para ' + month + ':\\n' +
+                    'Receitas cadastradas: ' + formatBRL(income) + '.\\n' +
+                    'Contas com data neste mês: ' + formatBRL(bills) + ' (' + monthlyBills.length + ' lançamentos).\\n' +
+                    'Diferença estimada: ' + formatBRL(balance) + '.\\n' +
+                    'Isso não é seu saldo bancário. Parcelas, cartão, investimentos e gastos não lançados podem não estar incluídos; confira a Análise mensal para o total consolidado.';
+            }
+            function geminiErrorMessage(error) {
+                const raw = String(error?.message || error || 'Erro desconhecido');
+                if (isGeminiLimitError(error))
+                    return 'O serviço Gemini recusou esta solicitação por limite de uso ou capacidade (429). Não é possível confirmar que seja um limite diário. Nenhum dado foi alterado. Tente novamente mais tarde ou utilize o resumo local.';
+                if (/(?:403|permission.denied|billing|paid tier|plan spark)/i.test(raw))
+                    return 'O Gemini não autorizou esta solicitação. Verifique acesso ao modelo, plano e configurações do Firebase AI Logic. Nenhum dado foi alterado.';
+                if (/(?:404|not found|model.*not)/i.test(raw))
+                    return 'O modelo Gemini configurado não está disponível para este projeto. Nenhum dado foi alterado.';
+                return 'Não foi possível consultar o Gemini: ' + raw.slice(0, 180) + '. Nenhum dado foi alterado.';
+            }
             async function handleSend(forcedText) {
                 const question = (typeof forcedText === 'string' ? forcedText : userInput.value).trim();
                 if (!question || busy) return;
@@ -4397,6 +4423,12 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const status = addMessage('ai','Analisando seus dados...');
                 try {
                     if (!currentUser) throw new Error('Faça login para analisar seus dados financeiros.');
+                    const localAnswer = localMonthlyBalanceAnswer(question);
+                    if (localAnswer) {
+                        status.remove();
+                        addMessage('ai', localAnswer);
+                        return;
+                    }
                     const localAction=parseSimpleExpense(question);
                     if(localAction){
                         const valid=validateAction(localAction);
@@ -4441,9 +4473,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 } catch (error) {
                     status.remove();
                     console.error('Gemini AI Logic:',error);
-                    addMessage('ai',isGeminiLimitError(error)
-                        ? 'O limite gratuito do Gemini foi atingido hoje. Nenhum dado foi alterado. Você ainda pode registrar despesas simples como “Gastei 50 reais de combustível hoje”, sem usar a IA.'
-                        : 'Não foi possível consultar o Gemini: '+String(error?.message||'erro desconhecido').slice(0,180)+'. Nenhum dado foi alterado.');
+                    addMessage('ai',geminiErrorMessage(error));
                 } finally { busy = false; btnSend.disabled = false; }
             }
             // Diagnóstico automático apenas de leitura, uma vez por abertura de sessão.
