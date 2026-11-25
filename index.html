@@ -4125,28 +4125,43 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             return !invHolidayCache.get(y).has(invIso(t));
         }
         let invCdiData={key:'',rates:new Map(),latest:null,status:'idle'};
-        function refreshInvestmentCdi(key,today){
+        async function refreshInvestmentCdi(month,today){
+            const key=month+'|'+invIso(today);
             if(invCdiData.key===key && (invCdiData.status==='loading'||Date.now()-(invCdiData.checked||0)<300000))return;
             invCdiData={key,rates:new Map(),latest:null,status:'loading',checked:Date.now()};
             const br=t=>invIso(t).split('-').reverse().join('/');
-            const start=Date.parse(key+'-01T00:00:00Z');
-            fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados?formato=json&dataInicial='+br(start)+'&dataFinal='+br(today))
-                .then(r=>{if(!r.ok)throw Error('CDI HTTP '+r.status);return r.json();})
-                .then(rows=>{
-                    if(invCdiData.key!==key)return;
+            const start=Date.parse(month+'-01T00:00:00Z');
+            const params=new URLSearchParams({formato:'json',dataInicial:br(start),dataFinal:br(today)});
+            const urls=[
+                'https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados?'+params.toString(),
+                'https://raw.githubusercontent.com/mateusjk06/Fin-control-pro/main/investment-cdi.json'
+            ];
+            let best=new Map(),source='';
+            for(const url of urls){
+                try{
+                    const controller=new AbortController();
+                    const timer=setTimeout(()=>controller.abort(),7000);
+                    let rows;
+                    try{
+                        const response=await fetch(url,{signal:controller.signal,cache:'no-store'});
+                        if(!response.ok)throw Error('HTTP '+response.status);
+                        rows=await response.json();
+                    }finally{clearTimeout(timer);}
                     const rates=new Map();
                     for(const row of rows){
                         const t=Date.parse(row.data.split('/').reverse().join('-')+'T00:00:00Z');
                         const rate=Number(String(row.valor).replace(',','.'))/100;
-                        if(Number.isFinite(t)&&t>=start&&t<=today&&Number.isFinite(rate)&&rate>=0)rates.set(t,rate);
+                        if(Number.isFinite(t)&&t>=start&&t<=today&&Number.isFinite(rate)&&rate>=0&&rate<.1)rates.set(t,rate);
                     }
-                    if(!rates.size)throw Error('Sem dados CDI');
-                    invCdiData={key,rates,latest:Math.max(...rates.keys()),status:'ready',checked:Date.now()};
-                    calculateInvestmentSchedule();
-                }).catch(()=>{
-                    if(invCdiData.key!==key)return;
-                    invCdiData.status='error';invCdiData.checked=Date.now();calculateInvestmentSchedule();
-                });
+                    if(rates.size && (!best.size||Math.max(...rates.keys())>Math.max(...best.keys())||rates.size>best.size)){
+                        best=rates;source=url===urls[0]?'direto':'cache GitHub';
+                    }
+                    if(url===urls[0]&&rates.size)break;
+                }catch(error){console.warn('Consulta CDI:',error);}
+            }
+            if(invCdiData.key!==key)return;
+            invCdiData={key,rates:best,latest:best.size?Math.max(...best.keys()):null,status:best.size?'ready':'error',source,checked:Date.now()};
+            calculateInvestmentSchedule();
         }
         function calculateInvestmentSchedule() {
             const initial = Math.max(0, parseFloat(document.getElementById('inv-initial').value) || 0);
@@ -4187,10 +4202,12 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const todayUTC=Date.UTC(today.getFullYear(),today.getMonth(),today.getDate());
             refreshInvestmentCdi(firstMonth,todayUTC);
             const official=invCdiData.status==='ready';
-            const cutoff=official?invCdiData.latest:todayUTC-dayMs;
+            let estimatedCutoff=todayUTC-dayMs;
+            while(!invBusinessDay(estimatedCutoff))estimatedCutoff-=dayMs;
+            const cutoff=official?invCdiData.latest:estimatedCutoff;
             document.getElementById('inv-cdi-status').textContent=official
-                ? 'CDI oficial BCB (SGS 12) até '+invIso(cutoff).split('-').reverse().join('/')
-                : 'CDI oficial '+(invCdiData.status==='loading'?'em consulta':'indisponível')+' — valores estimados pela taxa configurada.';
+                ? 'CDI oficial BCB (SGS 12, '+invCdiData.source+') até '+invIso(cutoff).split('-').reverse().join('/')
+                : 'CDI oficial '+(invCdiData.status==='loading'?'em consulta':'indisponível')+' — estimativa pela taxa configurada até '+invIso(cutoff).split('-').reverse().join('/')+'.';
             addLot(initial,dateAt(firstMonth,1)-dayMs,true);
             ensureInvestmentEntries();
             const lotDate = (entry,key) => {
@@ -4202,9 +4219,11 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 return dateAt(key,lastDay(key));
             };
             const valuation = (end,officialOnly=false,taxDate=end) => lots.reduce((v,l)=>{
-                if(l.date>end)return v;
+                if(l.date>taxDate)return v;
                 const age=Math.max(0,Math.round((taxDate-l.effective)/dayMs));
-                const gain=l.amount*growth(l.effective,end,officialOnly);
+                // Se a solicitação ocorreu em dia não útil, a primeira data útil já pode render; não excluir esse dia duas vezes.
+                const firstBase=l.effective>l.date?l.effective-dayMs:l.effective;
+                const gain=l.amount*growth(firstBase,end,officialOnly);
                 const iof=age<30 ? gain*(age===0?1:iofRates[age-1]/100):0;
                 const ir=(gain-iof)*taxRate(age);
                 v.principal+=l.amount;v.gain+=gain;v.ir+=ir;v.iof+=iof;
@@ -4244,7 +4263,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 if(current){
                     const ir=state.investmentConfig.useIR?current.ir:0,iof=state.investmentConfig.useIR?current.iof:0;
                     document.getElementById('inv-current-summary').textContent=
-                        'Rendimento apurado (estimativa): '+formatBRL(current.gain)+'\nIR: '+formatBRL(ir)+' | IOF: '+formatBRL(iof)+'\nSaldo bruto: '+formatBRL(current.principal+current.gain)+' | Saldo líquido: '+formatBRL(current.principal+current.gain-ir-iof);
+                        'Rendimento estimado até '+invIso(cutoff).split('-').reverse().join('/')+': '+formatBRL(current.gain)+'\nIR: '+formatBRL(ir)+' | IOF: '+formatBRL(iof)+'\nSaldo bruto: '+formatBRL(current.principal+current.gain)+' | Saldo líquido: '+formatBRL(current.principal+current.gain-ir-iof);
                 }
                 chartLabels.push(monthLabel.split(' ')[0]);
                 chartInvestedData.push(totalInvested);
