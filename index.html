@@ -807,7 +807,9 @@
             </div>
 
             <div class="px-2"><label for="inv-planned-day" class="block text-xs text-slate-400 mb-1">Dia dos aportes planejados</label><input id="inv-planned-day" type="number" min="1" max="31" value="1" class="w-24 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white"></div>
-            <p class="text-xs text-slate-400">Projeção até o fim de cada mês, com CDI constante e dias úteis estimados (segunda a sexta, sem calendário de feriados). Aporte inicial: início do mês. Registros sem data válida: fim do mês. IR e IOF estimados por aporte, se ativados.</p>
+            <p class="text-xs text-slate-400">CDI diário oficial até a última taxa publicada; projeções com a taxa anual configurada. Aportes em dias não úteis: efetivação estimada no próximo dia útil. Registros sem data: fim do mês. IR e IOF estimados por aporte.</p>
+            <p id="inv-cdi-status" class="text-xs text-slate-400" aria-live="polite"></p>
+            <p id="inv-current-summary" class="text-xs text-slate-300 whitespace-pre-line"></p>
             <p id="currency-investment-note" class="hidden rounded-lg border border-amber-600/40 bg-amber-950/20 px-4 py-3 text-xs text-amber-200"></p>
             <!-- Summary KPI Box -->
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -4108,6 +4110,44 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             });
         }
 
+        const invDayMs=86400000;
+        const invIso=t=>new Date(t).toISOString().slice(0,10);
+        const invHolidayCache=new Map();
+        function invBusinessDay(t){
+            const d=new Date(t), y=d.getUTCFullYear(), w=d.getUTCDay();
+            if(w===0||w===6)return false;
+            if(!invHolidayCache.has(y)){
+                const a=y%19,b=Math.floor(y/100),c=y%100,dd=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-dd-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),n=h+l-7*m+114;
+                const easter=Date.UTC(y,Math.floor(n/31)-1,n%31+1);
+                const fixed=['01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-24','12-25','12-31'].map(x=>y+'-'+x);
+                invHolidayCache.set(y,new Set([...fixed,...[-48,-47,-2,60].map(x=>invIso(easter+x*invDayMs))]));
+            }
+            return !invHolidayCache.get(y).has(invIso(t));
+        }
+        let invCdiData={key:'',rates:new Map(),latest:null,status:'idle'};
+        function refreshInvestmentCdi(key,today){
+            if(invCdiData.key===key && (invCdiData.status==='loading'||Date.now()-(invCdiData.checked||0)<300000))return;
+            invCdiData={key,rates:new Map(),latest:null,status:'loading',checked:Date.now()};
+            const br=t=>invIso(t).split('-').reverse().join('/');
+            const start=Date.parse(key+'-01T00:00:00Z');
+            fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados?formato=json&dataInicial='+br(start)+'&dataFinal='+br(today))
+                .then(r=>{if(!r.ok)throw Error('CDI HTTP '+r.status);return r.json();})
+                .then(rows=>{
+                    if(invCdiData.key!==key)return;
+                    const rates=new Map();
+                    for(const row of rows){
+                        const t=Date.parse(row.data.split('/').reverse().join('-')+'T00:00:00Z');
+                        const rate=Number(String(row.valor).replace(',','.'))/100;
+                        if(Number.isFinite(t)&&t>=start&&t<=today&&Number.isFinite(rate)&&rate>=0)rates.set(t,rate);
+                    }
+                    if(!rates.size)throw Error('Sem dados CDI');
+                    invCdiData={key,rates,latest:Math.max(...rates.keys()),status:'ready',checked:Date.now()};
+                    calculateInvestmentSchedule();
+                }).catch(()=>{
+                    if(invCdiData.key!==key)return;
+                    invCdiData.status='error';invCdiData.checked=Date.now();calculateInvestmentSchedule();
+                });
+        }
         function calculateInvestmentSchedule() {
             const initial = Math.max(0, parseFloat(document.getElementById('inv-initial').value) || 0);
             const monthly = Math.max(0, parseFloat(document.getElementById('inv-monthly').value) || 0);
@@ -4125,22 +4165,33 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 return Date.UTC(y,m-1,day);
             };
             const lastDay = key => { const [y,m] = key.split('-').map(Number); return new Date(Date.UTC(y,m,0)).getUTCDate(); };
-            const businessDays = (from,to) => {
-                let count=0;
-                for(let t=from+dayMs;t<=to;t+=dayMs) {
-                    const d=new Date(t).getUTCDay();
-                    if(d!==0 && d!==6) count++;
+            const growth = (from,to,officialOnly=false) => {
+                let log=0;
+                for(let t=from+dayMs;t<=to;t+=dayMs){
+                    if(invCdiData.rates.has(t))log+=Math.log1p(invCdiData.rates.get(t)*ratePct/100);
+                    else if(!officialOnly && (invCdiData.latest===null || t>invCdiData.latest) && invBusinessDay(t))log+=Math.log1p(dailyRate);
                 }
-                return count;
+                return Math.expm1(log);
             };
             const taxRate = days => days<=180 ? .225 : days<=360 ? .20 : days<=720 ? .175 : .15;
             const iofRates = [96,93,90,86,83,80,76,73,70,66,63,60,56,53,50,46,43,40,36,33,30,26,23,20,16,13,10,6,3];
             const lots=[];
-            const addLot=(amount,date)=>{if(amount>0)lots.push({amount,date});};
+            const addLot=(amount,date,initialLot=false)=>{
+                if(amount<=0)return;
+                let effective=date;
+                if(!initialLot)while(!invBusinessDay(effective))effective+=dayMs;
+                lots.push({amount,date,effective});
+            };
             const firstMonth=investmentMonthKeyOffset(0);
             const today=new Date();
             const todayUTC=Date.UTC(today.getFullYear(),today.getMonth(),today.getDate());
-            addLot(initial,dateAt(firstMonth,1)-dayMs);
+            refreshInvestmentCdi(firstMonth,todayUTC);
+            const official=invCdiData.status==='ready';
+            const cutoff=official?invCdiData.latest:todayUTC-dayMs;
+            document.getElementById('inv-cdi-status').textContent=official
+                ? 'CDI oficial BCB (SGS 12) até '+invIso(cutoff).split('-').reverse().join('/')
+                : 'CDI oficial '+(invCdiData.status==='loading'?'em consulta':'indisponível')+' — valores estimados pela taxa configurada.';
+            addLot(initial,dateAt(firstMonth,1)-dayMs,true);
             ensureInvestmentEntries();
             const lotDate = (entry,key) => {
                 const raw=entry.date;
@@ -4150,10 +4201,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 }
                 return dateAt(key,lastDay(key));
             };
-            const valuation = end => lots.reduce((v,l)=>{
+            const valuation = (end,officialOnly=false,taxDate=end) => lots.reduce((v,l)=>{
                 if(l.date>end)return v;
-                const age=Math.max(0,Math.round((end-l.date)/dayMs));
-                const gain=l.amount*Math.expm1(businessDays(l.date,end)*Math.log1p(dailyRate));
+                const age=Math.max(0,Math.round((taxDate-l.effective)/dayMs));
+                const gain=l.amount*growth(l.effective,end,officialOnly);
                 const iof=age<30 ? gain*(age===0?1:iofRates[age-1]/100):0;
                 const ir=(gain-iof)*taxRate(age);
                 v.principal+=l.amount;v.gain+=gain;v.ir+=ir;v.iof+=iof;
@@ -4188,7 +4239,13 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 estIofTotal=state.investmentConfig.useIR?v.iof:0;
                 const netBalance=currentBalance-estIrTotal-estIofTotal;
                 const irRate=v.gain-v.iof>0?v.ir/(v.gain-v.iof):0;
-                const accrued=i===0?valuation(todayUTC).gain:null;
+                const current=i===0?valuation(cutoff,official,todayUTC):null;
+                const accrued=current?current.gain:null;
+                if(current){
+                    const ir=state.investmentConfig.useIR?current.ir:0,iof=state.investmentConfig.useIR?current.iof:0;
+                    document.getElementById('inv-current-summary').textContent=
+                        'Rendimento apurado (estimativa): '+formatBRL(current.gain)+'\nIR: '+formatBRL(ir)+' | IOF: '+formatBRL(iof)+'\nSaldo bruto: '+formatBRL(current.principal+current.gain)+' | Saldo líquido: '+formatBRL(current.principal+current.gain-ir-iof);
+                }
                 chartLabels.push(monthLabel.split(' ')[0]);
                 chartInvestedData.push(totalInvested);
                 chartBalanceData.push(currentBalance);
@@ -4197,7 +4254,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 tr.innerHTML = '<td class="py-3 px-4 font-semibold text-slate-200 capitalize">' + monthLabel + '</td>' +
                     '<td class="py-3 px-4">' + formatBRL(startBalance - aporte) + '</td>' +
                     '<td class="py-3 px-4 text-emerald-400 font-medium">+' + formatBRL(aporte) + '<span class="block text-[10px] text-slate-500">' + (hasActual ? 'Realizado' : (i === 0 ? 'Sem registro' : 'Planejado')) + '</span></td>' +
-                    '<td class="py-3 px-4 text-cyan-400 font-semibold">+' + formatBRL(monthInterest) + (i===0 ? '<span class="block text-[10px] text-slate-400">Até hoje (est.): '+formatBRL(accrued)+'</span>' : '') + '</td>' +
+                    '<td class="py-3 px-4 text-cyan-400 font-semibold">+' + formatBRL(monthInterest) + (i===0 ? '<span class="block text-[10px] text-slate-400">Até última apuração (est.): '+formatBRL(accrued)+'</span>' : '') + '</td>' +
                     '<td class="py-3 px-4"><span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[11px]">' + (state.investmentConfig.useIR ? (irRate * 100).toFixed(1) + '% efetiva' : 'OFF') + '</span></td>' +
                     '<td class="py-3 px-4 font-bold text-white">' + formatBRL(currentBalance) + '</td>' +
                     '<td class="py-3 px-4 text-right font-bold text-emerald-400">' + formatBRL(netBalance) + '</td>';
