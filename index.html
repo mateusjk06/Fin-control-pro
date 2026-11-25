@@ -806,6 +806,8 @@
                 </div>
             </div>
 
+            <div class="px-2"><label for="inv-planned-day" class="block text-xs text-slate-400 mb-1">Dia dos aportes planejados</label><input id="inv-planned-day" type="number" min="1" max="31" value="1" class="w-24 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white"></div>
+            <p class="text-xs text-slate-400">Projeção até o fim de cada mês, com CDI constante e dias úteis estimados (segunda a sexta, sem calendário de feriados). Aporte inicial: início do mês. Registros sem data válida: fim do mês. IR e IOF estimados por aporte, se ativados.</p>
             <p id="currency-investment-note" class="hidden rounded-lg border border-amber-600/40 bg-amber-950/20 px-4 py-3 text-xs text-amber-200"></p>
             <!-- Summary KPI Box -->
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -818,7 +820,7 @@
                     <p id="kpi-total-interest" class="text-lg font-bold text-emerald-400 mt-1">R$ 682,45</p>
                 </div>
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
-                    <p class="text-xs text-slate-400">Imposto de Renda (Est.)</p>
+                    <p class="text-xs text-slate-400">IR (Est.)</p><p id="kpi-total-iof" class="text-[10px] text-slate-400"></p>
                     <p id="kpi-total-ir" class="text-lg font-bold text-rose-400 mt-1">R$ 153,55</p>
                 </div>
                 <div class="bg-slate-900 border border-emerald-500/30 rounded-xl p-4 text-center bg-emerald-950/10">
@@ -4112,12 +4114,55 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             const cdi = Math.max(0, parseFloat(document.getElementById('inv-cdi').value) || 13.6);
             const ratePct = Math.max(0, parseFloat(document.getElementById('inv-rate-pct').value) || 120);
             const monthsCount = Math.min(60, Math.max(1, parseInt(document.getElementById('inv-months').value, 10) || 8));
-            state.investmentConfig = { initial, monthly, cdiAnnual: cdi, ratePct, months: monthsCount, useIR: state.investmentConfig.useIR };
-            const annualRate = (cdi / 100) * (ratePct / 100);
-            const monthlyRate = Math.pow(1 + annualRate, 1 / 12) - 1;
+            const plannedDay = Math.min(31, Math.max(1, Math.trunc(Number(state.investmentConfig.plannedDay) || 1)));
+            document.getElementById('inv-planned-day').value = plannedDay;
+            state.investmentConfig = { initial, monthly, cdiAnnual: cdi, ratePct, months: monthsCount, plannedDay, useIR: state.investmentConfig.useIR };
+            // Cada lote preserva sua data e principal; projeção diária em base 252.
+            const dailyRate = Math.expm1(Math.log1p(cdi / 100) / 252) * ratePct / 100;
+            const dayMs = 86400000;
+            const dateAt = (key, day) => {
+                const [y,m] = key.split('-').map(Number);
+                return Date.UTC(y,m-1,day);
+            };
+            const lastDay = key => { const [y,m] = key.split('-').map(Number); return new Date(Date.UTC(y,m,0)).getUTCDate(); };
+            const businessDays = (from,to) => {
+                let count=0;
+                for(let t=from+dayMs;t<=to;t+=dayMs) {
+                    const d=new Date(t).getUTCDay();
+                    if(d!==0 && d!==6) count++;
+                }
+                return count;
+            };
+            const taxRate = days => days<=180 ? .225 : days<=360 ? .20 : days<=720 ? .175 : .15;
+            const iofRates = [96,93,90,86,83,80,76,73,70,66,63,60,56,53,50,46,43,40,36,33,30,26,23,20,16,13,10,6,3];
+            const lots=[];
+            const addLot=(amount,date)=>{if(amount>0)lots.push({amount,date});};
+            const firstMonth=investmentMonthKeyOffset(0);
+            const today=new Date();
+            const todayUTC=Date.UTC(today.getFullYear(),today.getMonth(),today.getDate());
+            addLot(initial,dateAt(firstMonth,1)-dayMs);
+            ensureInvestmentEntries();
+            const lotDate = (entry,key) => {
+                const raw=entry.date;
+                if(typeof raw==='string' && /^\d{4}-\d{2}-\d{2}$/.test(raw) && raw.slice(0,7)===key) {
+                    const d=Number(raw.slice(8));
+                    if(d>=1 && d<=lastDay(key))return dateAt(key,d);
+                }
+                return dateAt(key,lastDay(key));
+            };
+            const valuation = end => lots.reduce((v,l)=>{
+                if(l.date>end)return v;
+                const age=Math.max(0,Math.round((end-l.date)/dayMs));
+                const gain=l.amount*Math.expm1(businessDays(l.date,end)*Math.log1p(dailyRate));
+                const iof=age<30 ? gain*(age===0?1:iofRates[age-1]/100):0;
+                const ir=(gain-iof)*taxRate(age);
+                v.principal+=l.amount;v.gain+=gain;v.ir+=ir;v.iof+=iof;
+                return v;
+            },{principal:0,gain:0,ir:0,iof:0});
             let currentBalance = initial;
             let totalInvested = initial;
             let totalInterest = 0;
+            let estIrTotal=0, estIofTotal=0;
             const tbody = document.getElementById('tbl-schedule-body');
             tbody.innerHTML = '';
             const chartLabels = [];
@@ -4126,20 +4171,24 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             for (let i = 0; i < monthsCount; i++) {
                 const monthKey = investmentMonthKeyOffset(i);
                 const monthLabel = formatInvestmentMonth(monthKey);
-                const hasActual = Object.prototype.hasOwnProperty.call(state.monthlyInvestments || {}, monthKey);
-                const aporte = hasActual ? Math.max(0, Number(state.monthlyInvestments[monthKey]) || 0) : (i === 0 ? 0 : monthly);
-                totalInvested += aporte;
-                const startBalance = currentBalance + aporte;
-                const monthInterest = startBalance * monthlyRate;
-                totalInterest += monthInterest;
-                currentBalance = startBalance + monthInterest;
-                const days = (i + 1) * 30;
-                let irRate = 0.225;
-                if (days > 180 && days <= 360) irRate = 0.20;
-                else if (days > 360 && days <= 720) irRate = 0.175;
-                else if (days > 720) irRate = 0.15;
-                const irTax = state.investmentConfig.useIR ? totalInterest * irRate : 0;
-                const netBalance = currentBalance - irTax;
+                const records=state.investmentEntries.filter(e=>e.month===monthKey && Number.isFinite(Number(e.amount)) && Number(e.amount)>=0);
+                const hasActual=records.length>0;
+                const aporte=hasActual ? records.reduce((sum,e)=>sum+Number(e.amount),0) : (i===0?0:monthly);
+                const startBalance=currentBalance+aporte;
+                const previousInterest=totalInterest;
+                if(hasActual) records.forEach(e=>addLot(Number(e.amount),lotDate(e,monthKey)));
+                else addLot(aporte,dateAt(monthKey,Math.min(plannedDay,lastDay(monthKey))));
+                const end=dateAt(monthKey,lastDay(monthKey));
+                const v=valuation(end);
+                totalInvested=v.principal;
+                totalInterest=v.gain;
+                const monthInterest=totalInterest-previousInterest;
+                currentBalance=totalInvested+totalInterest;
+                estIrTotal=state.investmentConfig.useIR?v.ir:0;
+                estIofTotal=state.investmentConfig.useIR?v.iof:0;
+                const netBalance=currentBalance-estIrTotal-estIofTotal;
+                const irRate=v.gain-v.iof>0?v.ir/(v.gain-v.iof):0;
+                const accrued=i===0?valuation(todayUTC).gain:null;
                 chartLabels.push(monthLabel.split(' ')[0]);
                 chartInvestedData.push(totalInvested);
                 chartBalanceData.push(currentBalance);
@@ -4148,18 +4197,18 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 tr.innerHTML = '<td class="py-3 px-4 font-semibold text-slate-200 capitalize">' + monthLabel + '</td>' +
                     '<td class="py-3 px-4">' + formatBRL(startBalance - aporte) + '</td>' +
                     '<td class="py-3 px-4 text-emerald-400 font-medium">+' + formatBRL(aporte) + '<span class="block text-[10px] text-slate-500">' + (hasActual ? 'Realizado' : (i === 0 ? 'Sem registro' : 'Planejado')) + '</span></td>' +
-                    '<td class="py-3 px-4 text-cyan-400 font-semibold">+' + formatBRL(monthInterest) + '</td>' +
-                    '<td class="py-3 px-4"><span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[11px]">' + (irRate * 100).toFixed(1) + '%</span></td>' +
+                    '<td class="py-3 px-4 text-cyan-400 font-semibold">+' + formatBRL(monthInterest) + (i===0 ? '<span class="block text-[10px] text-slate-400">Até hoje (est.): '+formatBRL(accrued)+'</span>' : '') + '</td>' +
+                    '<td class="py-3 px-4"><span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[11px]">' + (state.investmentConfig.useIR ? (irRate * 100).toFixed(1) + '% efetiva' : 'OFF') + '</span></td>' +
                     '<td class="py-3 px-4 font-bold text-white">' + formatBRL(currentBalance) + '</td>' +
                     '<td class="py-3 px-4 text-right font-bold text-emerald-400">' + formatBRL(netBalance) + '</td>';
                 tbody.appendChild(tr);
             }
-            const finalIrRate = monthsCount * 30 > 180 ? 0.20 : 0.225;
-            const estIrTotal = state.investmentConfig.useIR ? totalInterest * finalIrRate : 0;
+
             document.getElementById('kpi-total-invested').innerText = formatBRL(totalInvested);
             document.getElementById('kpi-total-interest').innerText = formatBRL(totalInterest);
             document.getElementById('kpi-total-ir').innerText = formatBRL(estIrTotal);
-            document.getElementById('kpi-final-balance').innerText = formatBRL(currentBalance - estIrTotal);
+            document.getElementById('kpi-total-iof').innerText = 'IOF (Est.): '+formatBRL(estIofTotal);
+            document.getElementById('kpi-final-balance').innerText = formatBRL(currentBalance - estIrTotal - estIofTotal);
             updateInvestChart(chartLabels, chartInvestedData, chartBalanceData);
             renderInvestmentAnalysis();
         }
@@ -4909,6 +4958,7 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
                 const raw=document.getElementById('inv-record-amount').value;
                 const amount=Number(raw);
                 const date = document.getElementById('inv-record-date').value || null;
+                if(date && date.slice(0,7)!==month){showToast('A data precisa pertencer ao mês do aporte.');return;}
                 if(!validInvestmentMonth(month)||raw.trim()===''||!Number.isFinite(amount)||amount<0){
                     showToast(investmentRecordLabel('invalid'));return;
                 }
@@ -4933,6 +4983,10 @@ def gerar_diagnostico_gemini(renda, contas, dividas, aportes):
             document.getElementById('btn-cancel-investment-edit').addEventListener('click',cancelInvestmentEdit);
             refreshInvestmentEditUI();
 
+            document.getElementById('inv-planned-day').addEventListener('change', e=>{
+                state.investmentConfig.plannedDay=Math.min(31,Math.max(1,Math.trunc(Number(e.target.value)||1)));
+                calculateInvestmentSchedule();saveAppData();
+            });
             ['inv-initial', 'inv-monthly', 'inv-cdi', 'inv-rate-pct', 'inv-months'].forEach(id => {
                 document.getElementById(id).addEventListener('input', () => {
                     calculateInvestmentSchedule();
