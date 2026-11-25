@@ -1,0 +1,42 @@
+name: Atualizar CDI oficial
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/investment-cdi.yml'
+  schedule:
+    - cron: '17 12,16,21 * * 1-5'
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Consultar Banco Central e validar dados
+        run: |
+          python - <<'PY'
+          import datetime, json, urllib.request, urllib.parse
+          today=datetime.date.today()
+          params=urllib.parse.urlencode({'formato':'json','dataInicial':(today-datetime.timedelta(days=400)).strftime('%d/%m/%Y'),'dataFinal':today.strftime('%d/%m/%Y')})
+          url='https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados?'+params
+          req=urllib.request.Request(url,headers={'User-Agent':'FinControl-Pro/1.0','Accept':'application/json'})
+          with urllib.request.urlopen(req,timeout=45) as response:
+              rows=json.load(response)
+          assert isinstance(rows,list) and rows
+          for row in rows:
+              datetime.datetime.strptime(row['data'],'%d/%m/%Y')
+              assert 0 <= float(row['valor'].replace(',','.')) < 10
+          with open('investment-cdi.json','w') as out:
+              json.dump(rows,out,ensure_ascii=False,separators=(',',':'))
+          PY
+      - name: Salvar cache público
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add investment-cdi.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Atualizar cache CDI oficial'
+            git pull --rebase
+            git push
+          fi
