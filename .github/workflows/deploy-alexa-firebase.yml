@@ -1,0 +1,40 @@
+name: Preparar deploy da Alexa no Firebase
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: alexa-deploy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verificar configuração de autenticação segura
+        env:
+          WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$WIF_PROVIDER" ] || [ -z "$SERVICE_ACCOUNT" ]; then
+            echo "::error::Configure GCP_WORKLOAD_IDENTITY_PROVIDER e GCP_SERVICE_ACCOUNT antes de publicar."
+            exit 1
+          fi
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      - name: Instalar dependências
+        run: npm --prefix functions install --no-audit --no-fund
+      - name: Verificar sintaxe
+        run: |
+          node --check functions/index.js
+          node --check functions/alexa-oauth.js
+          node --check alexa-skill/lambda-index.js
+      - name: Publicar somente o endpoint Alexa
+        run: npx --yes firebase-tools@latest deploy --project fincontrol-pro-6cc5d --only functions:alexaOAuth --non-interactive

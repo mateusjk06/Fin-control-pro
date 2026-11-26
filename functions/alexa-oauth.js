@@ -118,6 +118,74 @@ async function bearerUid(req){
  const data=(await db.collection("alexaOAuthTokens").doc(hash(m[1])).get()).data();
  return data&&data.kind==="access"&&data.expiresAt>time()?data.uid:null;
 }
+
+function financialMonth(data,now=new Date()){
+ const month=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit"}).format(now);
+ const [year,mon]=month.split("-").map(Number);
+ const num=value=>Math.max(0,Number(value)||0);
+ const round=value=>Math.round((value+Number.EPSILON)*100)/100;
+ const move=(key,n)=>{
+  const [y,m]=key.split("-").map(Number);const d=new Date(Date.UTC(y,m-1+n,1));
+  return d.toISOString().slice(0,7);
+ };
+ const months=(a,b)=>{if(!/^\d{4}-\d{2}/.test(a||""))return null;const [y,m]=a.slice(0,7).split("-").map(Number);return (Number(b.slice(0,4))-y)*12+Number(b.slice(5,7))-m;};
+ const base=data.monthlyIncomeOverrides&&Object.prototype.hasOwnProperty.call(data.monthlyIncomeOverrides,month)
+  ? num(data.monthlyIncomeOverrides[month]):num(data.income);
+ const extra=(data.monthlyExtraIncome?.[month]||[]).reduce((s,x)=>s+num(x.amount),0);
+ const income=round(base+extra);
+ const bills=(data.bills||[]).reduce((s,b)=>{
+  if(!b)return s;
+  const start=String(b.date||"").slice(0,7);
+  const offset=start?months(start,month):0;
+  if(offset===null||offset<0||b.repeat==="once"&&offset!==0||
+   b.repeat==="limited"&&offset>=Math.max(1,Number(b.durationMonths)||1))return s;
+  return s+num(b.val??b.amount??b.value);
+ },0);
+ const installments=(data.debts||[]).reduce((sum,d)=>{
+  if(!d)return sum;
+  const schedule=Array.isArray(d.schedule)?d.schedule:[];
+  if(schedule.length){
+   const pending=schedule.findIndex(p=>p&&!p.paid);
+   return sum+schedule.reduce((s,p,i)=>{
+    if(!p)return s;
+    const due=/^\d{4}-\d{2}-\d{2}$/.test(p.date||"")?p.date.slice(0,7):
+     d.startDate?move(d.startDate.slice(0,7),i):
+     d.nextDueDate?move(d.nextDueDate.slice(0,7),i-(pending<0?0:pending)):"";
+    return due===month&&(!p.paid||p.paidAt)?s+num(p.value??d.installment??d.minPayment):s;
+   },0);
+  }
+  if(Number(d.balance)<=0)return sum;
+  const paid=num(d.paidCount),count=num(d.installmentCount);
+  const first=d.nextDueDate|| (d.startDate?move(d.startDate.slice(0,7),paid):month);
+  const offset=months(first,month);
+  return offset!==null&&offset>=0&&(!count||offset<count-paid)
+   ?sum+num(d.minPayment??d.installment):sum;
+ },0);
+ const cards=(data.creditCards||[]).reduce((sum,card)=>{
+  if(!card)return sum;
+  const invoices={};
+  for(const p of card.purchases||[]){
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(p.date||""))continue;
+   const close=Math.min(31,Math.max(1,Number(card.closeDay)||1));
+   const closing=move(p.date.slice(0,7),Number(p.date.slice(8,10))>close?1:0);
+   const count=Math.max(1,Math.min(120,Number(p.installments)||1));
+   const cents=Math.round(num(p.amount)*100);
+   for(let i=0;i<count;i++){
+    const key=move(closing,i);
+    invoices[key]=(invoices[key]||0)+(Math.floor(cents/count)+(i<cents%count?1:0))/100;
+   }
+  }
+  return sum+Object.entries(invoices).reduce((s,[key,amount])=>{
+   const due=move(key,Number(card.dueDay)<=Number(card.closeDay)?1:0);
+   return due===month?s+amount:s;
+  },0);
+ },0);
+ const entries=Array.isArray(data.investmentEntries)?data.investmentEntries.filter(x=>x&&x.month===month):[];
+ const investment=entries.length?entries.reduce((s,x)=>s+num(x.amount),0):num(data.monthlyInvestments?.[month]);
+ return {month,monthlyIncome:income,monthlyCommitments:round(bills+installments+cards+investment),
+  freeBalance:round(income-bills-installments-cards-investment)};
+}
+
 async function summary(req,res){
  const uid=await bearerUid(req);
  if(!uid)return json(res,401,{error:"invalid_token"});
@@ -127,6 +195,7 @@ async function summary(req,res){
  const bills=Array.isArray(data.bills)?data.bills.filter(x=>x&&!x.paid):[];
  const debts=Array.isArray(data.debts)?data.debts.filter(x=>x):[];
  return json(res,200,{
+  ...financialMonth(data),
   currency:/^[A-Z]{3}$/.test(data.currency||"")?data.currency:"BRL",
   pendingBills:bills.length,
   pendingBillTotal:Math.round(bills.reduce((s,b)=>s+(Number(b.val)||0),0)*100)/100,
